@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "edinet": {
+      "command": "uvx",
+      "args": ["edinet-mcp", "serve"],
+      "env": {
+        "EDINET_API_KEY": "your_subscription_key_here"
+      }
+    }
+  }
+}

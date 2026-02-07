@@ -138,7 +138,7 @@ len(stmt.balance_sheet)           # number of line items
 ## Development
 
 ```bash
-git clone https://github.com/rei/edinet-mcp
+git clone https://github.com/ajtgjmdjp/edinet-mcp
 cd edinet-mcp
 uv sync --dev
 uv run pytest -v
@@ -146,12 +146,19 @@ uv run ruff check .
 uv run mypy src/
 ```
 
+## Data Attribution
+
+This project uses data from [EDINET](https://disclosure.edinet-fsa.go.jp/)
+(Electronic Disclosure for Investors' NETwork), operated by the
+Financial Services Agency of Japan (金融庁).
+EDINET data is provided under the [Public Data License 1.0](https://www.digital.go.jp/resources/open_data/).
+
 ## Related Projects
 
 - [edinet2dataset](https://github.com/SakanaAI/edinet2dataset) — Sakana AI's EDINET XBRL→JSON tool
 - [EDINET-Bench](https://github.com/SakanaAI/EDINET-Bench) — Financial classification benchmark
-- [jfinqa](https://github.com/rei/jfinqa) — Japanese financial QA benchmark (companion project)
+- [jfinqa](https://github.com/ajtgjmdjp/jfinqa) — Japanese financial QA benchmark (companion project)
 
 ## License
 
-Apache-2.0
+Apache-2.0. See [NOTICE](NOTICE) for third-party attributions.

@@ -22,6 +22,7 @@ class RateLimiter:
         self._min_interval = 1.0 / rate if rate > 0 else 0.0
         self._last_request: float = 0.0
         self._lock = Lock()
+        self._async_lock = asyncio.Lock()
 
     def wait(self) -> None:
         """Block until the next request is allowed (sync)."""
@@ -34,8 +35,9 @@ class RateLimiter:
 
     async def await_(self) -> None:
         """Await until the next request is allowed (async)."""
-        now = time.monotonic()
-        elapsed = now - self._last_request
-        if elapsed < self._min_interval:
-            await asyncio.sleep(self._min_interval - elapsed)
-        self._last_request = time.monotonic()
+        async with self._async_lock:
+            now = time.monotonic()
+            elapsed = now - self._last_request
+            if elapsed < self._min_interval:
+                await asyncio.sleep(self._min_interval - elapsed)
+            self._last_request = time.monotonic()

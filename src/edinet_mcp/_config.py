@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -20,6 +21,14 @@ class Settings(BaseSettings):
     request_timeout: float = 30.0
 
     model_config = {"env_prefix": "", "env_file": ".env", "extra": "ignore"}
+
+    @field_validator("edinet_base_url")
+    @classmethod
+    def _validate_base_url(cls, v: str) -> str:
+        if not v.startswith(("https://", "http://localhost")):
+            msg = "edinet_base_url must use HTTPS (or http://localhost for testing)"
+            raise ValueError(msg)
+        return v
 
 
 def get_settings(**overrides: object) -> Settings:

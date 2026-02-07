@@ -5,9 +5,8 @@ from __future__ import annotations
 import datetime
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from edinet_mcp.client import EdinetClient, _date_range, _to_date
+from edinet_mcp.models import Company
 
 
 class TestDateUtils:
@@ -58,12 +57,19 @@ class TestSearchCompanies:
         """search_companies should filter by name match."""
         client = EdinetClient(api_key="test")
 
-        # Mock the company list
-        from edinet_mcp.models import Company
-
         mock_companies = [
-            Company(edinet_code="E02144", name="トヨタ自動車株式会社", ticker="7203", is_listed=True),
-            Company(edinet_code="E00001", name="ソニーグループ株式会社", ticker="6758", is_listed=True),
+            Company(
+                edinet_code="E02144",
+                name="トヨタ自動車株式会社",
+                ticker="7203",
+                is_listed=True,
+            ),
+            Company(
+                edinet_code="E00001",
+                name="ソニーグループ株式会社",
+                ticker="6758",
+                is_listed=True,
+            ),
         ]
         client._get_company_list = MagicMock(return_value=mock_companies)  # type: ignore[method-assign]
 
@@ -73,10 +79,14 @@ class TestSearchCompanies:
 
     def test_search_by_ticker(self) -> None:
         client = EdinetClient(api_key="test")
-        from edinet_mcp.models import Company
 
         mock_companies = [
-            Company(edinet_code="E02144", name="トヨタ自動車株式会社", ticker="7203", is_listed=True),
+            Company(
+                edinet_code="E02144",
+                name="トヨタ自動車株式会社",
+                ticker="7203",
+                is_listed=True,
+            ),
         ]
         client._get_company_list = MagicMock(return_value=mock_companies)  # type: ignore[method-assign]
 
@@ -85,10 +95,14 @@ class TestSearchCompanies:
 
     def test_search_by_edinet_code(self) -> None:
         client = EdinetClient(api_key="test")
-        from edinet_mcp.models import Company
 
         mock_companies = [
-            Company(edinet_code="E02144", name="トヨタ自動車株式会社", ticker="7203", is_listed=True),
+            Company(
+                edinet_code="E02144",
+                name="トヨタ自動車株式会社",
+                ticker="7203",
+                is_listed=True,
+            ),
         ]
         client._get_company_list = MagicMock(return_value=mock_companies)  # type: ignore[method-assign]
 
@@ -97,7 +111,6 @@ class TestSearchCompanies:
 
     def test_search_no_match(self) -> None:
         client = EdinetClient(api_key="test")
-        from edinet_mcp.models import Company
 
         client._get_company_list = MagicMock(return_value=[])  # type: ignore[method-assign]
 

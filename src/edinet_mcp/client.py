@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import io
+import re
 import tempfile
 import zipfile
 from pathlib import Path
@@ -36,6 +37,12 @@ from edinet_mcp.models import (
     FinancialStatement,
 )
 from edinet_mcp.parser import XBRLParser
+
+# Maximum date range to prevent excessive API calls
+_MAX_DATE_RANGE_DAYS = 366
+
+# Pattern for valid EDINET document IDs (e.g. "S100VVC2")
+_DOC_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
 
 # EDINET API v2 document retrieval type parameter
 _DOC_RETRIEVE_XBRL = 1
@@ -113,15 +120,21 @@ class EdinetClient:
     def _get_json(self, url: str, params: dict[str, Any]) -> Any:
         """Perform a rate-limited GET and return parsed JSON."""
         self._limiter.wait()
-        resp = self._http.get(url, params=params)
-        resp.raise_for_status()
+        try:
+            resp = self._http.get(url, params=params)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            raise _sanitize_http_error(e, self._api_key) from None
         return resp.json()
 
     def _get_bytes(self, url: str, params: dict[str, Any]) -> bytes:
         """Perform a rate-limited GET and return raw bytes."""
         self._limiter.wait()
-        resp = self._http.get(url, params=params)
-        resp.raise_for_status()
+        try:
+            resp = self._http.get(url, params=params)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            raise _sanitize_http_error(e, self._api_key) from None
         return resp.content
 
     # ------------------------------------------------------------------
@@ -159,6 +172,12 @@ class EdinetClient:
         elif start_date is not None:
             d_start = _to_date(start_date)
             d_end = _to_date(end_date) if end_date else datetime.date.today()
+            if (d_end - d_start).days > _MAX_DATE_RANGE_DAYS:
+                msg = (
+                    f"Date range exceeds {_MAX_DATE_RANGE_DAYS} days. "
+                    "Use a narrower range to avoid excessive API calls."
+                )
+                raise ValueError(msg)
             dates = _date_range(d_start, d_end)
         else:
             dates = [datetime.date.today()]
@@ -222,6 +241,9 @@ class EdinetClient:
         Returns:
             Path to the downloaded file.
         """
+        if not _DOC_ID_PATTERN.match(doc_id):
+            raise ValueError(f"Invalid document ID format: {doc_id!r}")
+
         type_map = {
             "xbrl": _DOC_RETRIEVE_XBRL,
             "pdf": _DOC_RETRIEVE_PDF,
@@ -314,7 +336,7 @@ class EdinetClient:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(tmp)
+                _safe_extractall(zf, tmp)
 
             return self._parser.parse_directory(filing, tmp)
 
@@ -434,3 +456,25 @@ def _date_range(start: datetime.date, end: datetime.date) -> list[datetime.date]
     """Generate a list of dates from start to end inclusive."""
     days = (end - start).days + 1
     return [start + datetime.timedelta(days=i) for i in range(max(0, days))]
+
+
+def _safe_extractall(zf: zipfile.ZipFile, target_dir: Path) -> None:
+    """Extract a ZIP file safely, preventing path traversal (ZIP Slip).
+
+    Validates that no entry would be written outside *target_dir*.
+    """
+    resolved_target = target_dir.resolve()
+    for info in zf.infolist():
+        target_path = (target_dir / info.filename).resolve()
+        if not str(target_path).startswith(str(resolved_target)):
+            msg = f"ZIP entry escapes target directory: {info.filename!r}"
+            raise ValueError(msg)
+    zf.extractall(target_dir)
+
+
+def _sanitize_http_error(error: httpx.HTTPError, api_key: str | None) -> httpx.HTTPError:
+    """Remove API key from HTTP error messages to prevent leaking credentials."""
+    if not api_key:
+        return error
+    sanitized_msg = str(error).replace(api_key, "***")
+    return type(error)(sanitized_msg)

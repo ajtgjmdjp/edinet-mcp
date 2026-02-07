@@ -7,6 +7,7 @@ from typing import Any
 
 import polars as pl
 import pytest
+from pydantic import ValidationError
 
 from edinet_mcp.models import (
     AccountingStandard,
@@ -35,7 +36,7 @@ class TestDocType:
 
 class TestCompany:
     def test_frozen(self, sample_company: Company) -> None:
-        with pytest.raises(Exception):  # Pydantic frozen model
+        with pytest.raises(ValidationError):
             sample_company.name = "Changed"  # type: ignore[misc]
 
     def test_fields(self, sample_company: Company) -> None:

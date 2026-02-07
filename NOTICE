@@ -1,0 +1,24 @@
+edinet-mcp
+Copyright 2025 ajtgjmdjp
+
+This product includes data obtained from the EDINET API
+(Electronic Disclosure for Investors' NETwork) operated by
+the Financial Services Agency of Japan (FSA).
+
+EDINET data is provided under the Public Data License 1.0 (PDL1.0):
+https://www.digital.go.jp/resources/open_data/
+
+Attribution: Financial Services Agency of Japan
+https://disclosure.edinet-fsa.go.jp/
+
+---
+
+This project uses the following open-source libraries:
+
+- httpx (BSD License) - https://github.com/encode/httpx
+- Pydantic (MIT License) - https://github.com/pydantic/pydantic
+- pydantic-settings (MIT License) - https://github.com/pydantic/pydantic-settings
+- Polars (MIT License) - https://github.com/pola-rs/polars
+- FastMCP (MIT License) - https://github.com/jlowin/fastmcp
+- Click (BSD License) - https://github.com/pallets/click
+- Loguru (MIT License) - https://github.com/Delgan/loguru

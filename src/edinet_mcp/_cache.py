@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import stat
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -23,7 +25,7 @@ class DiskCache:
 
     def __init__(self, cache_dir: Path) -> None:
         self._dir = cache_dir
-        self._dir.mkdir(parents=True, exist_ok=True)
+        self._dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     def _key(self, namespace: str, params: dict[str, Any]) -> str:
         raw = json.dumps(params, sort_keys=True, default=str)
@@ -39,9 +41,9 @@ class DiskCache:
     def put_json(self, namespace: str, params: dict[str, Any], data: Any) -> Path:
         """Store a JSON response in the cache. Returns the file path."""
         ns_dir = self._dir / namespace
-        ns_dir.mkdir(parents=True, exist_ok=True)
+        ns_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = ns_dir / f"{self._key(namespace, params)}.json"
-        path.write_text(json.dumps(data, ensure_ascii=False, default=str), encoding="utf-8")
+        _write_restricted(path, json.dumps(data, ensure_ascii=False, default=str).encode("utf-8"))
         return path
 
     def get_file(self, namespace: str, params: dict[str, Any], suffix: str = "") -> Path | None:
@@ -54,9 +56,9 @@ class DiskCache:
     ) -> Path:
         """Store binary data in the cache. Returns the file path."""
         ns_dir = self._dir / namespace
-        ns_dir.mkdir(parents=True, exist_ok=True)
+        ns_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = ns_dir / f"{self._key(namespace, params)}{suffix}"
-        path.write_bytes(data)
+        _write_restricted(path, data)
         return path
 
     def clear(self) -> None:
@@ -65,4 +67,13 @@ class DiskCache:
 
         if self._dir.exists():
             shutil.rmtree(self._dir)
-            self._dir.mkdir(parents=True, exist_ok=True)
+            self._dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+
+def _write_restricted(path: Path, data: bytes) -> None:
+    """Write data to a file with owner-only permissions (0o600)."""
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, stat.S_IRUSR | stat.S_IWUSR)
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)

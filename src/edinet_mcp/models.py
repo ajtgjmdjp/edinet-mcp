@@ -27,6 +27,7 @@ class DocType(str, Enum):
     EXTRAORDINARY_REPORT = "180"  # 臨時報告書
     SHELF_REGISTRATION = "030"  # 有価証券届出書
     LARGE_SHAREHOLDING = "350"  # 大量保有報告書
+    OTHER = "000"  # その他 (未知のdocTypeCode用)
 
     @classmethod
     def from_label(cls, label: str) -> DocType:
@@ -124,18 +125,23 @@ class Filing(BaseModel):
     @classmethod
     def from_api_row(cls, row: dict[str, Any]) -> Filing:
         """Construct from an EDINET API v2 ``results[]`` item."""
+        raw_code = row.get("docTypeCode")
+        try:
+            doc_type = DocType(raw_code) if raw_code else DocType.OTHER
+        except ValueError:
+            doc_type = DocType.OTHER
         return cls(
             doc_id=row["docID"],
-            edinet_code=row.get("edinetCode", ""),
-            company_name=row.get("filerName", ""),
-            doc_type=DocType(row.get("docTypeCode", "120")),
-            filing_date=_parse_date(row.get("submitDateTime", "")),
+            edinet_code=row.get("edinetCode") or "",
+            company_name=row.get("filerName") or "",
+            doc_type=doc_type,
+            filing_date=_parse_date(row.get("submitDateTime") or ""),
             period_start=_parse_date_or_none(row.get("periodStart")),
             period_end=_parse_date_or_none(row.get("periodEnd")),
             has_xbrl=bool(row.get("xbrlFlag")),
             has_pdf=bool(row.get("pdfFlag")),
             has_csv=bool(row.get("csvFlag")),
-            description=row.get("docDescription", ""),
+            description=row.get("docDescription") or "",
         )
 
 

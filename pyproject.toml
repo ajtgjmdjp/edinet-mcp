@@ -45,9 +45,9 @@ dev = [
 edinet-mcp = "edinet_mcp.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/rei/edinet-mcp"
-Repository = "https://github.com/rei/edinet-mcp"
-Issues = "https://github.com/rei/edinet-mcp/issues"
+Homepage = "https://github.com/ajtgjmdjp/edinet-mcp"
+Repository = "https://github.com/ajtgjmdjp/edinet-mcp"
+Issues = "https://github.com/ajtgjmdjp/edinet-mcp/issues"
 
 [build-system]
 requires = ["hatchling"]

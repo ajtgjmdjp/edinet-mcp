@@ -283,7 +283,7 @@ class EdinetClient:
         params = self._request_params({"type": retrieve_type})
         data = self._get_bytes(url, params)
 
-        if not data[:2] == b"PK":
+        if data[:2] != b"PK":
             # EDINET may return HTTP 200 with a JSON error body
             msg = f"EDINET returned non-ZIP response for {doc_id}"
             try:

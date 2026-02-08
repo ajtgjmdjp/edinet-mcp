@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import io
+import json
 import re
 import tempfile
 import zipfile
@@ -53,6 +54,22 @@ _DOC_RETRIEVE_ENGLISH = 4
 # EDINET API v2 document list type parameter
 _DOC_LIST_METADATA = 1
 _DOC_LIST_WITH_RESULTS = 2
+
+# ZIP magic bytes
+_ZIP_MAGIC = b"PK"
+
+
+class EdinetAPIError(Exception):
+    """Raised when the EDINET API returns an unexpected response."""
+
+
+def _is_valid_zip(path: Path) -> bool:
+    """Check if a file starts with ZIP magic bytes."""
+    try:
+        with open(path, "rb") as f:
+            return f.read(2) == _ZIP_MAGIC
+    except OSError:
+        return False
 
 
 class EdinetClient:
@@ -255,12 +272,26 @@ class EdinetClient:
         cache_params = {"doc_id": doc_id, "type": retrieve_type}
         cached_path = self._cache.get_file("documents", cache_params, suffix=".zip")
         if cached_path is not None:
-            logger.debug(f"Cache hit for {doc_id} ({format})")
-            return cached_path
+            if _is_valid_zip(cached_path):
+                logger.debug(f"Cache hit for {doc_id} ({format})")
+                return cached_path
+            # Cached file is corrupt (e.g. an error response) — remove and re-download
+            logger.warning(f"Removing corrupt cached file for {doc_id}")
+            cached_path.unlink(missing_ok=True)
 
         url = f"{self._base_url}/documents/{doc_id}"
         params = self._request_params({"type": retrieve_type})
         data = self._get_bytes(url, params)
+
+        if not data[:2] == b"PK":
+            # EDINET may return HTTP 200 with a JSON error body
+            msg = f"EDINET returned non-ZIP response for {doc_id}"
+            try:
+                body = json.loads(data)
+                msg = f"EDINET API error for {doc_id}: {body.get('message', body)}"
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+            raise EdinetAPIError(msg)
 
         if output_dir:
             out = Path(output_dir)

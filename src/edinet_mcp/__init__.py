@@ -10,7 +10,7 @@ Quick start::
     print(stmt.income_statement.to_polars())
 """
 
-from edinet_mcp.client import EdinetClient
+from edinet_mcp.client import EdinetAPIError, EdinetClient
 from edinet_mcp.models import (
     AccountingStandard,
     Company,
@@ -25,6 +25,7 @@ __all__ = [
     "AccountingStandard",
     "Company",
     "DocType",
+    "EdinetAPIError",
     "EdinetClient",
     "Filing",
     "FinancialStatement",

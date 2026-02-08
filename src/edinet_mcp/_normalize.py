@@ -34,7 +34,7 @@ def _load_taxonomy() -> dict[str, list[dict[str, Any]]]:
     if _taxonomy_cache is not None:
         return _taxonomy_cache
 
-    ref = pkg_files("edinet_mcp").joinpath("data", "taxonomy.yaml")
+    ref = pkg_files("edinet_mcp").joinpath("data").joinpath("taxonomy.yaml")
     text = ref.read_text(encoding="utf-8")
     _taxonomy_cache = yaml.safe_load(text)
     return _taxonomy_cache
@@ -98,7 +98,7 @@ def _extract_period(item: dict[str, Any]) -> str:
     to inspecting the XBRL context reference for Prior/Previous keywords.
     """
     # EDINET TSV format
-    period = item.get("相対年度", "")
+    period = str(item.get("相対年度", ""))
     if period in ("当期", "前期", "前々期"):
         return period
 

@@ -19,3 +19,4 @@ htmlcov/
 *.zip
 *.xbrl
 data/cache/
+review_prompt.txt

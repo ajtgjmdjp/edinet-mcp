@@ -28,6 +28,8 @@ import re
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any
 
+import defusedxml.ElementTree as DefusedET
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -179,11 +181,13 @@ class XBRLParser:
             return facts
 
         try:
-            tree = ET.parse(path)
+            tree = DefusedET.parse(path)
         except ET.ParseError:
             return facts
 
         root = tree.getroot()
+        if root is None:
+            return facts
 
         for elem in root.iter():
             tag = elem.tag

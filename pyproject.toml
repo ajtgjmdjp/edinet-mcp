@@ -28,6 +28,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "loguru>=0.7",
     "pyyaml>=6.0",
+    "defusedxml>=0.7",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +41,7 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
     "types-pyyaml>=6.0",
+    "types-defusedxml>=0.7",
 ]
 
 [project.scripts]

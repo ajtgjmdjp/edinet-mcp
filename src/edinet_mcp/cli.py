@@ -37,7 +37,7 @@ def search(query: str, limit: int, as_json: bool) -> None:
 
         edinet-mcp search 7203
 
-        edinet-mcp search E02144 --json
+        edinet-mcp search E02144 --json-output
     """
     from edinet_mcp.client import EdinetClient
 

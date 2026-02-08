@@ -462,19 +462,30 @@ def _safe_extractall(zf: zipfile.ZipFile, target_dir: Path) -> None:
     """Extract a ZIP file safely, preventing path traversal (ZIP Slip).
 
     Validates that no entry would be written outside *target_dir*.
+    Uses ``Path.relative_to`` for strict containment checking.
     """
     resolved_target = target_dir.resolve()
     for info in zf.infolist():
         target_path = (target_dir / info.filename).resolve()
-        if not str(target_path).startswith(str(resolved_target)):
+        try:
+            target_path.relative_to(resolved_target)
+        except ValueError:
             msg = f"ZIP entry escapes target directory: {info.filename!r}"
-            raise ValueError(msg)
+            raise ValueError(msg) from None
     zf.extractall(target_dir)
 
 
 def _sanitize_http_error(error: httpx.HTTPError, api_key: str | None) -> httpx.HTTPError:
-    """Remove API key from HTTP error messages to prevent leaking credentials."""
+    """Remove API key from HTTP error messages to prevent leaking credentials.
+
+    Re-raises the original exception with its args sanitized, rather than
+    constructing a new instance (which may require additional positional
+    arguments depending on the exception subclass).
+    """
     if not api_key:
         return error
-    sanitized_msg = str(error).replace(api_key, "***")
-    return type(error)(sanitized_msg)
+    sanitized_args = tuple(
+        arg.replace(api_key, "***") if isinstance(arg, str) else arg for arg in error.args
+    )
+    error.args = sanitized_args
+    return error

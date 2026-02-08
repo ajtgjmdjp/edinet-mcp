@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-02-08
+
+### Fixed
+- Validate ZIP magic bytes on downloaded and cached EDINET API responses. Previously, EDINET HTTP 200 responses containing JSON error bodies (e.g. 401 "Access denied") were cached as `.zip` files, causing persistent "File is not a zip file" errors.
+- `EdinetAPIError` exception raised with clear message when EDINET returns a non-ZIP response.
+
+### Added
+- `EdinetAPIError` exception class exported from the package.
+
+## [0.1.0] - 2026-02-08
+
 ### Added
 - `EdinetClient` for EDINET API v2 access (company search, filings, financial statements)
 - `XBRLParser` with dual TSV/XBRL extraction paths

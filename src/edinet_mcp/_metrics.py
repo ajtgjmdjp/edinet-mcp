@@ -13,7 +13,10 @@ if TYPE_CHECKING:
 
 
 def _get_val(
-    stmt: FinancialStatement, statement: str, label: str, period: str = "当期",
+    stmt: FinancialStatement,
+    statement: str,
+    label: str,
+    period: str = "当期",
 ) -> float | None:
     """Safely extract a numeric value from a normalized statement."""
     data = getattr(stmt, statement, None)

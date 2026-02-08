@@ -261,8 +261,7 @@ async def list_available_labels(
         str,
         Field(
             description=(
-                "財務諸表の種類: 'income_statement' (PL), "
-                "'balance_sheet' (BS), 'cash_flow' (CF)"
+                "財務諸表の種類: 'income_statement' (PL), 'balance_sheet' (BS), 'cash_flow' (CF)"
             )
         ),
     ] = "income_statement",

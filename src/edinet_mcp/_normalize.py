@@ -194,8 +194,7 @@ def get_taxonomy_labels(
     yaml_key = key_map.get(statement_type, statement_type)
     items = taxonomy.get(yaml_key, [])
     return [
-        {"id": item["id"], "label": item["label"], "label_en": item["label_en"]}
-        for item in items
+        {"id": item["id"], "label": item["label"], "label_en": item["label_en"]} for item in items
     ]
 
 

@@ -8,13 +8,14 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 
 ## What is this?
 
-**edinet-mcp** provides programmatic access to Japan's [EDINET](https://disclosure.edinet-fsa.go.jp/) financial disclosure system. It parses XBRL filings into structured DataFrames and exposes them as an [MCP](https://modelcontextprotocol.io/) server for AI assistants.
+**edinet-mcp** provides programmatic access to Japan's [EDINET](https://disclosure.edinet-fsa.go.jp/) financial disclosure system. It normalizes XBRL filings across accounting standards (J-GAAP / IFRS / US-GAAP) into canonical Japanese labels and exposes them as an [MCP](https://modelcontextprotocol.io/) server for AI assistants.
 
 - Search 5,000+ listed Japanese companies
 - Retrieve annual/quarterly financial reports (有価証券報告書, 四半期報告書)
+- **Automatic normalization**: `stmt["売上高"]` works regardless of accounting standard
+- Financial metrics (ROE, ROA, profit margins) and year-over-year comparison
 - Parse XBRL into Polars/pandas DataFrames (BS, PL, CF)
-- MCP server for Claude Desktop and other AI tools
-- J-GAAP / IFRS / US-GAAP detection
+- MCP server with 7 tools for Claude Desktop and other AI tools
 
 ## Quick Start
 
@@ -46,9 +47,31 @@ companies = client.search_companies("トヨタ")
 print(companies[0].name, companies[0].edinet_code)
 # トヨタ自動車株式会社 E02144
 
-# Get financial statements as a Polars DataFrame
-stmt = client.get_financial_statements("E02144", period="2024")
+# Get normalized financial statements
+stmt = client.get_financial_statements("E02144", period="2025")
+
+# Dict-like access — works for J-GAAP, IFRS, and US-GAAP
+revenue = stmt.income_statement["売上高"]
+print(revenue)  # {"当期": 45095325000000, "前期": 37154298000000}
+
+# See all available line items
+print(stmt.income_statement.labels)
+# ["売上高", "売上原価", "売上総利益", "営業利益", ...]
+
+# Export as DataFrame
 print(stmt.income_statement.to_polars())
+```
+
+### Financial Metrics
+
+```python
+from edinet_mcp import EdinetClient, calculate_metrics
+
+client = EdinetClient()
+stmt = client.get_financial_statements("E02144", period="2025")
+metrics = calculate_metrics(stmt)
+print(metrics["profitability"])
+# {"売上総利益率": "25.30%", "営業利益率": "11.87%", "ROE": "12.50%", ...}
 ```
 
 ## MCP Server (for Claude Desktop)
@@ -77,8 +100,13 @@ Then ask Claude: "トヨタの最新の営業利益を教えて"
 |------|-------------|
 | `search_companies` | 企業名・証券コード・EDINETコードで検索 |
 | `get_filings` | 指定期間の開示書類一覧を取得 |
-| `get_financial_statements` | 財務諸表 (BS/PL/CF) を構造化データで取得 |
+| `get_financial_statements` | 正規化された財務諸表 (BS/PL/CF) を取得 |
+| `get_financial_metrics` | ROE・ROA・利益率等の財務指標を計算 |
+| `compare_financial_periods` | 前年比較（増減額・増減率） |
+| `list_available_labels` | 取得可能な財務科目の一覧 |
 | `get_company_info` | 企業の詳細情報を取得 |
+
+> **Note**: The `period` parameter is the **filing year**, not the fiscal year. Japanese companies with a March fiscal year-end file annual reports in June of the following year (e.g., FY2024 → filed 2025 → `period="2025"`).
 
 ## CLI
 
@@ -126,13 +154,52 @@ df = stmt.income_statement.to_pandas()  # pandas DataFrame (optional dep)
 
 ### `StatementData`
 
-Each financial statement (BS, PL, CF) is a `StatementData` object:
+Each financial statement (BS, PL, CF) is a `StatementData` object with dict-like access:
 
 ```python
+# Dict-like access by Japanese label
+stmt.income_statement["売上高"]       # → {"当期": 45095325, "前期": 37154298}
+stmt.income_statement.get("営業利益") # → {"当期": 5352934} or None
+stmt.income_statement.labels          # → ["売上高", "営業利益", ...]
+
+# DataFrame export
 stmt.balance_sheet.to_polars()    # → polars.DataFrame
 stmt.balance_sheet.to_pandas()    # → pandas.DataFrame (requires pandas)
 stmt.balance_sheet.to_dicts()     # → list[dict]
 len(stmt.balance_sheet)           # number of line items
+
+# Raw XBRL data preserved
+stmt.income_statement.raw_items   # original pre-normalization data
+```
+
+### Normalization
+
+edinet-mcp automatically normalizes XBRL element names across accounting standards:
+
+| Accounting Standard | XBRL Element | Normalized Label |
+|---|---|---|
+| J-GAAP | `NetSales` | 売上高 |
+| IFRS | `Revenue` | 売上高 |
+| US-GAAP | `Revenues` | 売上高 |
+
+Mappings are defined in [`taxonomy.yaml`](src/edinet_mcp/data/taxonomy.yaml) — 57 items covering BS (23), PL (17), and CF (17). Add new mappings by editing the YAML file, no code changes needed.
+
+```python
+from edinet_mcp import get_taxonomy_labels
+
+# Discover available labels
+labels = get_taxonomy_labels("income_statement")
+# [{"id": "revenue", "label": "売上高", "label_en": "Revenue"}, ...]
+```
+
+## Architecture
+
+```
+EDINET API → Parser (XBRL/TSV) → Normalizer (taxonomy.yaml) → MCP Server
+                                        ↓
+                              StatementData["売上高"]
+                              calculate_metrics(stmt)
+                              compare_periods(stmt)
 ```
 
 ## Development
@@ -140,10 +207,9 @@ len(stmt.balance_sheet)           # number of line items
 ```bash
 git clone https://github.com/ajtgjmdjp/edinet-mcp
 cd edinet-mcp
-uv sync --dev
-uv run pytest -v
-uv run ruff check .
-uv run mypy src/
+uv sync --extra dev
+uv run pytest -v           # 85 tests
+uv run ruff check src/
 ```
 
 ## Data Attribution

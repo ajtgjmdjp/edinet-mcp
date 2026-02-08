@@ -16,6 +16,7 @@ from edinet_mcp.models import (
     Filing,
     FinancialStatement,
     StatementData,
+    _parse_date,
 )
 
 
@@ -96,3 +97,38 @@ class TestFinancialStatement:
 
     def test_accounting_standard(self, sample_financial_statement: FinancialStatement) -> None:
         assert sample_financial_statement.accounting_standard == AccountingStandard.IFRS
+
+
+class TestParseDate:
+    def test_normal_date(self) -> None:
+        assert _parse_date("2025-06-20") == datetime.date(2025, 6, 20)
+
+    def test_datetime_string(self) -> None:
+        assert _parse_date("2025-06-20T09:00:00+09:00") == datetime.date(2025, 6, 20)
+
+    def test_empty_returns_date_min(self) -> None:
+        """Empty string should return date.min, not today()."""
+        assert _parse_date("") == datetime.date.min
+
+    def test_missing_submit_date_sorts_oldest(self) -> None:
+        """Filing with missing submitDateTime should sort as oldest."""
+        row_with_date = {
+            "docID": "S100AAA1",
+            "edinetCode": "E02144",
+            "filerName": "Test",
+            "docTypeCode": "120",
+            "submitDateTime": "2025-06-20T09:00:00+09:00",
+        }
+        row_without_date = {
+            "docID": "S100BBB2",
+            "edinetCode": "E02144",
+            "filerName": "Test",
+            "docTypeCode": "120",
+            "submitDateTime": None,
+        }
+        f1 = Filing.from_api_row(row_with_date)
+        f2 = Filing.from_api_row(row_without_date)
+
+        # The one with a real date should sort as more recent
+        filings = sorted([f2, f1], key=lambda f: f.filing_date, reverse=True)
+        assert filings[0].doc_id == "S100AAA1"

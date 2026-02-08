@@ -265,9 +265,13 @@ class FinancialStatement(BaseModel):
 
 
 def _parse_date(value: str) -> datetime.date:
-    """Parse an ISO-ish date or datetime string."""
+    """Parse an ISO-ish date or datetime string.
+
+    Falls back to ``datetime.date.min`` for missing values so that filings
+    without a submit date sort as the *oldest*, not the newest.
+    """
     if not value:
-        return datetime.date.today()
+        return datetime.date.min
     # EDINET returns dates as "YYYY-MM-DD" or datetimes as "YYYY-MM-DDTHH:MM:SS+09:00"
     return datetime.date.fromisoformat(value[:10])
 

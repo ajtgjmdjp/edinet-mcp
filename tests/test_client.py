@@ -3,10 +3,24 @@
 from __future__ import annotations
 
 import datetime
+import io
+import zipfile
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from edinet_mcp.client import EdinetClient, _date_range, _to_date
+import pytest
+
+from edinet_mcp.client import (
+    _ZIP_MAX_FILES,
+    EdinetClient,
+    _date_range,
+    _safe_extractall,
+    _to_date,
+)
 from edinet_mcp.models import Company
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestDateUtils:
@@ -116,3 +130,37 @@ class TestSearchCompanies:
 
         results = client.search_companies("存在しない企業")
         assert len(results) == 0
+
+
+class TestSafeExtractall:
+    def test_normal_zip(self, tmp_path: Path) -> None:
+        """Normal ZIP extracts successfully."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("test.txt", "hello")
+        buf.seek(0)
+        with zipfile.ZipFile(buf) as zf:
+            _safe_extractall(zf, tmp_path)
+        assert (tmp_path / "test.txt").read_text() == "hello"
+
+    def test_path_traversal_blocked(self, tmp_path: Path) -> None:
+        """ZIP entries with path traversal are rejected."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("../escape.txt", "malicious")
+        buf.seek(0)
+        with (
+            zipfile.ZipFile(buf) as zf,
+            pytest.raises(ValueError, match="escapes target directory"),
+        ):
+            _safe_extractall(zf, tmp_path)
+
+    def test_too_many_files_rejected(self, tmp_path: Path) -> None:
+        """ZIP with excessive file count is rejected."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            for i in range(_ZIP_MAX_FILES + 1):
+                zf.writestr(f"file_{i}.txt", "x")
+        buf.seek(0)
+        with zipfile.ZipFile(buf) as zf, pytest.raises(ValueError, match="too many files"):
+            _safe_extractall(zf, tmp_path)

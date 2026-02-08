@@ -163,9 +163,20 @@ class XBRLParser:
 
         return found
 
+    # Maximum XBRL file size to parse (50 MB).  Protects against
+    # decompression bombs and billion-laughs-style entity expansion.
+    # Source files come from EDINET's HTTPS API so the risk is minimal,
+    # but a size guard is cheap defense-in-depth.
+    _MAX_XBRL_SIZE = 50 * 1024 * 1024
+
     def _extract_xbrl_facts(self, path: Path) -> list[dict[str, Any]]:
         """Extract financial facts from an XBRL instance document."""
         facts: list[dict[str, Any]] = []
+
+        file_size = path.stat().st_size
+        if file_size > self._MAX_XBRL_SIZE:
+            logger.warning(f"Skipping oversized XBRL file ({file_size} bytes): {path.name}")
+            return facts
 
         try:
             tree = ET.parse(path)

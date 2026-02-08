@@ -491,20 +491,39 @@ def _date_range(start: datetime.date, end: datetime.date) -> list[datetime.date]
     return [start + datetime.timedelta(days=i) for i in range(max(0, days))]
 
 
-def _safe_extractall(zf: zipfile.ZipFile, target_dir: Path) -> None:
-    """Extract a ZIP file safely, preventing path traversal (ZIP Slip).
+# ZIP bomb limits — EDINET filings are typically 1-10 MB uncompressed.
+_ZIP_MAX_FILES = 5000
+_ZIP_MAX_TOTAL_SIZE = 500 * 1024 * 1024  # 500 MB
 
-    Validates that no entry would be written outside *target_dir*.
+
+def _safe_extractall(zf: zipfile.ZipFile, target_dir: Path) -> None:
+    """Extract a ZIP file safely, preventing path traversal and ZIP bombs.
+
+    Validates that no entry would be written outside *target_dir*,
+    and enforces limits on file count and total uncompressed size.
     Uses ``Path.relative_to`` for strict containment checking.
     """
     resolved_target = target_dir.resolve()
-    for info in zf.infolist():
+    total_size = 0
+    entries = zf.infolist()
+
+    if len(entries) > _ZIP_MAX_FILES:
+        msg = f"ZIP contains too many files ({len(entries)} > {_ZIP_MAX_FILES})"
+        raise ValueError(msg)
+
+    for info in entries:
+        total_size += info.file_size
+        if total_size > _ZIP_MAX_TOTAL_SIZE:
+            msg = f"ZIP total uncompressed size exceeds {_ZIP_MAX_TOTAL_SIZE // (1024 * 1024)} MB"
+            raise ValueError(msg)
+
         target_path = (target_dir / info.filename).resolve()
         try:
             target_path.relative_to(resolved_target)
         except ValueError:
             msg = f"ZIP entry escapes target directory: {info.filename!r}"
             raise ValueError(msg) from None
+
     zf.extractall(target_dir)
 
 

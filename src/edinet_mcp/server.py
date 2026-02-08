@@ -18,6 +18,7 @@ Usage with Claude Desktop (add to ``claude_desktop_config.json``)::
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated, Any
 
 from fastmcp import FastMCP
@@ -60,7 +61,7 @@ def _get_client() -> EdinetClient:
 
 
 def _fetch_stmt(edinet_code: str, period: str | None, doc_type: str) -> Any:
-    """Shared helper to fetch a financial statement."""
+    """Shared helper to fetch a financial statement (sync)."""
     client = _get_client()
     return client.get_financial_statements(
         edinet_code=edinet_code,
@@ -84,7 +85,7 @@ async def search_companies(
     - search_companies("E02144") → Toyota (by EDINET code)
     """
     client = _get_client()
-    companies = client.search_companies(query)
+    companies = await asyncio.to_thread(client.search_companies, query)
     return [c.model_dump() for c in companies[:20]]
 
 
@@ -118,7 +119,8 @@ async def get_filings(
     Use the doc_id with get_financial_statements to retrieve actual data.
     """
     client = _get_client()
-    filings = client.get_filings(
+    filings = await asyncio.to_thread(
+        client.get_filings,
         start_date=start_date,
         end_date=end_date,
         edinet_code=edinet_code,
@@ -156,7 +158,7 @@ async def get_financial_statements(
     Example response:
       income_statement: [{"科目": "売上高", "当期": 45095325, "前期": 37154298}, ...]
     """
-    stmt = _fetch_stmt(edinet_code, period, doc_type)
+    stmt = await asyncio.to_thread(_fetch_stmt, edinet_code, period, doc_type)
     result: dict[str, Any] = {
         "filing": stmt.filing.model_dump(mode="json"),
         "accounting_standard": stmt.accounting_standard.value,
@@ -198,7 +200,7 @@ async def get_financial_metrics(
       "cash_flow": {"営業CF": 5000000, "フリーCF": 3000000, ...}
     }
     """
-    stmt = _fetch_stmt(edinet_code, period, doc_type)
+    stmt = await asyncio.to_thread(_fetch_stmt, edinet_code, period, doc_type)
     metrics = calculate_metrics(stmt)
     metrics["filing"] = {
         "doc_id": stmt.filing.doc_id,
@@ -242,7 +244,7 @@ async def compare_financial_periods(
       ]
     }
     """
-    stmt = _fetch_stmt(edinet_code, period, doc_type)
+    stmt = await asyncio.to_thread(_fetch_stmt, edinet_code, period, doc_type)
     changes = compare_periods(stmt)
     return {
         "filing": {
@@ -285,5 +287,5 @@ async def get_company_info(
 ) -> dict[str, Any]:
     """Get detailed information about a company by EDINET code."""
     client = _get_client()
-    company = client.get_company(edinet_code)
+    company = await asyncio.to_thread(client.get_company, edinet_code)
     return company.model_dump()

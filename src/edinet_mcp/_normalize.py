@@ -132,6 +132,10 @@ def _normalize_items(
     elem_map = _build_element_map(taxonomy_items)
 
     # Accumulate: canonical_id -> {period_label: value}
+    # NOTE: When multiple values exist for the same element+period
+    # (e.g. consolidated vs non-consolidated in XBRL), last-write-wins.
+    # This is acceptable because the primary TSV path provides pre-separated
+    # data per context, and the XBRL path is only a fallback.
     values: dict[str, dict[str, int | float]] = {}
 
     for item in raw_items:

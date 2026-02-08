@@ -1,0 +1,427 @@
+# XBRL Taxonomy -> Canonical Japanese Financial Labels
+#
+# Each statement type contains ordered items. The list order determines
+# display order. Each item maps one or more XBRL element names to a
+# canonical Japanese label.
+#
+# To add support for a new line item:
+#   1. Add an entry with id, label (Japanese), label_en, and elements
+#   2. List all known XBRL element variants (J-GAAP, IFRS, US-GAAP)
+#   3. Place it in the correct display order position
+
+income_statement:
+  - id: revenue
+    label: 売上高
+    label_en: Revenue
+    elements:
+      - NetSales              # J-GAAP
+      - Revenue               # IFRS
+      - Revenues              # US-GAAP variant
+
+  - id: cost_of_sales
+    label: 売上原価
+    label_en: Cost of Sales
+    elements:
+      - CostOfSales
+
+  - id: gross_profit
+    label: 売上総利益
+    label_en: Gross Profit
+    elements:
+      - GrossProfit
+
+  - id: sga_expenses
+    label: 販売費及び一般管理費
+    label_en: SGA Expenses
+    elements:
+      - SellingGeneralAndAdministrativeExpenses
+
+  - id: operating_income
+    label: 営業利益
+    label_en: Operating Income
+    elements:
+      - OperatingIncome        # J-GAAP
+      - OperatingProfit        # IFRS
+
+  - id: non_operating_income
+    label: 営業外収益
+    label_en: Non-Operating Income
+    elements:
+      - NonOperatingIncome
+
+  - id: non_operating_expenses
+    label: 営業外費用
+    label_en: Non-Operating Expenses
+    elements:
+      - NonOperatingExpenses
+
+  - id: ordinary_income
+    label: 経常利益
+    label_en: Ordinary Income
+    elements:
+      - OrdinaryIncome
+
+  - id: extraordinary_income
+    label: 特別利益
+    label_en: Extraordinary Income
+    elements:
+      - ExtraordinaryIncome
+
+  - id: extraordinary_loss
+    label: 特別損失
+    label_en: Extraordinary Loss
+    elements:
+      - ExtraordinaryLoss
+
+  - id: income_before_tax
+    label: 税引前当期純利益
+    label_en: Income Before Tax
+    elements:
+      - IncomeBeforeIncomeTaxes  # J-GAAP
+      - ProfitBeforeTax          # IFRS
+
+  - id: income_taxes
+    label: 法人税等
+    label_en: Income Taxes
+    elements:
+      - IncomeTaxes
+
+  - id: net_income
+    label: 当期純利益
+    label_en: Net Income
+    elements:
+      - ProfitLoss             # J-GAAP
+      - ProfitForThePeriod     # IFRS
+
+  - id: net_income_parent
+    label: 親会社株主に帰属する当期純利益
+    label_en: Net Income (Parent)
+    elements:
+      - ProfitLossAttributableToOwnersOfParent       # J-GAAP
+      - ProfitAttributableToOwnersOfParent            # IFRS
+
+  - id: net_income_minority
+    label: 非支配株主に帰属する当期純利益
+    label_en: Net Income (Non-controlling)
+    elements:
+      - ProfitLossAttributableToNonControllingInterests
+
+  - id: comprehensive_income
+    label: 包括利益
+    label_en: Comprehensive Income
+    elements:
+      - ComprehensiveIncome
+
+  - id: depreciation
+    label: 減価償却費
+    label_en: Depreciation
+    elements:
+      - DepreciationAndAmortization
+
+  - id: rd_expenses
+    label: 研究開発費
+    label_en: R&D Expenses
+    elements:
+      - ResearchAndDevelopmentExpenses
+
+balance_sheet:
+  # --- Assets ---
+  - id: current_assets
+    label: 流動資産
+    label_en: Current Assets
+    elements:
+      - CurrentAssets
+
+  - id: cash_and_deposits
+    label: 現金及び預金
+    label_en: Cash and Deposits
+    elements:
+      - CashAndDeposits          # J-GAAP
+      - CashAndCashEquivalents   # IFRS
+
+  - id: receivables
+    label: 受取手形及び売掛金
+    label_en: Trade Receivables
+    elements:
+      - NotesAndAccountsReceivableTrade
+      - AccountsReceivableTrade
+
+  - id: inventories
+    label: 棚卸資産
+    label_en: Inventories
+    elements:
+      - Inventories
+      - MerchandiseAndFinishedGoods
+
+  - id: short_term_securities
+    label: 有価証券
+    label_en: Short-term Securities
+    elements:
+      - ShortTermInvestmentSecurities
+
+  - id: other_current_assets
+    label: その他の流動資産
+    label_en: Other Current Assets
+    elements:
+      - OtherCurrentAssets
+
+  - id: noncurrent_assets
+    label: 固定資産
+    label_en: Non-current Assets
+    elements:
+      - NoncurrentAssets
+
+  - id: ppe
+    label: 有形固定資産
+    label_en: Property, Plant & Equipment
+    elements:
+      - PropertyPlantAndEquipment
+      - PropertyPlantAndEquipmentNet
+
+  - id: intangible_assets
+    label: 無形固定資産
+    label_en: Intangible Assets
+    elements:
+      - IntangibleAssets
+
+  - id: goodwill
+    label: のれん
+    label_en: Goodwill
+    elements:
+      - Goodwill
+
+  - id: investments_and_other
+    label: 投資その他の資産
+    label_en: Investments and Other Assets
+    elements:
+      - InvestmentsAndOtherAssets
+
+  - id: investment_securities
+    label: 投資有価証券
+    label_en: Investment Securities
+    elements:
+      - InvestmentSecurities
+
+  - id: total_assets
+    label: 資産合計
+    label_en: Total Assets
+    elements:
+      - TotalAssets
+
+  # --- Liabilities ---
+  - id: current_liabilities
+    label: 流動負債
+    label_en: Current Liabilities
+    elements:
+      - CurrentLiabilities
+
+  - id: short_term_loans
+    label: 短期借入金
+    label_en: Short-term Loans
+    elements:
+      - ShortTermLoansPayable
+
+  - id: trade_payables
+    label: 支払手形及び買掛金
+    label_en: Trade Payables
+    elements:
+      - NotesAndAccountsPayableTrade
+      - AccountsPayableTrade
+
+  - id: current_portion_lt_loans
+    label: 1年内返済予定の長期借入金
+    label_en: Current Portion of LT Loans
+    elements:
+      - CurrentPortionOfLongTermLoansPayable
+
+  - id: noncurrent_liabilities
+    label: 固定負債
+    label_en: Non-current Liabilities
+    elements:
+      - NoncurrentLiabilities
+
+  - id: long_term_loans
+    label: 長期借入金
+    label_en: Long-term Loans
+    elements:
+      - LongTermLoansPayable
+
+  - id: bonds_payable
+    label: 社債
+    label_en: Bonds Payable
+    elements:
+      - BondsPayable
+
+  - id: total_liabilities
+    label: 負債合計
+    label_en: Total Liabilities
+    elements:
+      - TotalLiabilities
+
+  # --- Equity ---
+  - id: shareholders_equity
+    label: 株主資本
+    label_en: Shareholders' Equity
+    elements:
+      - ShareholdersEquity
+
+  - id: capital_stock
+    label: 資本金
+    label_en: Capital Stock
+    elements:
+      - CapitalStock
+
+  - id: capital_surplus
+    label: 資本剰余金
+    label_en: Capital Surplus
+    elements:
+      - CapitalSurplus
+
+  - id: retained_earnings
+    label: 利益剰余金
+    label_en: Retained Earnings
+    elements:
+      - RetainedEarnings
+
+  - id: treasury_shares
+    label: 自己株式
+    label_en: Treasury Shares
+    elements:
+      - TreasuryShares
+
+  - id: aoci
+    label: その他の包括利益累計額
+    label_en: Accumulated OCI
+    elements:
+      - AccumulatedOtherComprehensiveIncome
+
+  - id: non_controlling_interests
+    label: 非支配株主持分
+    label_en: Non-controlling Interests
+    elements:
+      - NonControllingInterests
+
+  - id: equity_parent
+    label: 親会社の所有者に帰属する持分
+    label_en: Equity (Parent)
+    elements:
+      - EquityAttributableToOwnersOfParent
+
+  - id: net_assets
+    label: 純資産合計
+    label_en: Net Assets / Total Equity
+    elements:
+      - NetAssets               # J-GAAP
+      - TotalEquity             # IFRS
+
+  - id: total_liabilities_and_net_assets
+    label: 負債純資産合計
+    label_en: Total Liabilities & Net Assets
+    elements:
+      - TotalLiabilitiesAndNetAssets
+
+cash_flow:
+  - id: operating_cf
+    label: 営業活動によるキャッシュ・フロー
+    label_en: Operating Cash Flow
+    elements:
+      - CashFlowsFromOperatingActivities
+
+  - id: investing_cf
+    label: 投資活動によるキャッシュ・フロー
+    label_en: Investing Cash Flow
+    elements:
+      - CashFlowsFromInvestingActivities
+
+  - id: financing_cf
+    label: 財務活動によるキャッシュ・フロー
+    label_en: Financing Cash Flow
+    elements:
+      - CashFlowsFromFinancingActivities
+
+  - id: fx_effect
+    label: 現金及び現金同等物に係る換算差額
+    label_en: FX Effect on Cash
+    elements:
+      - EffectOfExchangeRateChangeOnCashAndCashEquivalents
+
+  - id: net_change_in_cash
+    label: 現金及び現金同等物の増減額
+    label_en: Net Change in Cash
+    elements:
+      - NetIncreaseDecreaseInCashAndCashEquivalents
+
+  - id: cash_beginning
+    label: 現金及び現金同等物の期首残高
+    label_en: Cash at Beginning
+    elements:
+      - CashAndCashEquivalentsAtBeginningOfPeriod
+
+  - id: cash_end
+    label: 現金及び現金同等物の期末残高
+    label_en: Cash at End
+    elements:
+      - CashAndCashEquivalentsAtEndOfPeriod
+
+  # Operating CF details
+  - id: depreciation_cf
+    label: 減価償却費
+    label_en: Depreciation (CF)
+    elements:
+      - DepreciationAndAmortizationOpeCF
+
+  - id: change_in_receivables
+    label: 売上債権の増減額
+    label_en: Change in Receivables
+    elements:
+      - IncreaseDecreaseInNotesAndAccountsReceivable
+
+  - id: change_in_inventories
+    label: 棚卸資産の増減額
+    label_en: Change in Inventories
+    elements:
+      - IncreaseDecreaseInInventories
+
+  - id: change_in_payables
+    label: 仕入債務の増減額
+    label_en: Change in Payables
+    elements:
+      - IncreaseDecreaseInNotesAndAccountsPayable
+
+  # Investing CF details
+  - id: purchase_ppe
+    label: 有形固定資産の取得による支出
+    label_en: Purchase of PPE
+    elements:
+      - PurchaseOfPropertyPlantAndEquipment
+
+  - id: purchase_investments
+    label: 投資有価証券の取得による支出
+    label_en: Purchase of Investments
+    elements:
+      - PurchaseOfInvestmentSecurities
+
+  # Financing CF details
+  - id: bond_issuance
+    label: 社債の発行による収入
+    label_en: Bond Issuance Proceeds
+    elements:
+      - ProceedsFromIssuanceOfBonds
+
+  - id: bond_redemption
+    label: 社債の償還による支出
+    label_en: Bond Redemption
+    elements:
+      - RedemptionOfBonds
+
+  - id: dividends_paid
+    label: 配当金の支払額
+    label_en: Dividends Paid
+    elements:
+      - DividendsPaid
+
+  - id: purchase_treasury_shares
+    label: 自己株式の取得による支出
+    label_en: Purchase of Treasury Shares
+    elements:
+      - PurchaseOfTreasuryShares

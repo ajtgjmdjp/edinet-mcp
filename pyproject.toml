@@ -1,6 +1,6 @@
 [project]
 name = "edinet-mcp"
-version = "0.1.1"
+version = "0.2.0"
 description = "EDINET XBRL parsing library and MCP server for Japanese financial data"
 readme = "README.md"
 license = "Apache-2.0"
@@ -28,6 +28,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "loguru>=0.7",
     "tqdm>=4.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

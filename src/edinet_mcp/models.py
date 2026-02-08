@@ -151,18 +151,46 @@ class Filing(BaseModel):
 
 
 class StatementData(BaseModel):
-    """A single financial statement (BS / PL / CF) with dual-format output.
+    """A single financial statement (BS / PL / CF).
 
-    Internally stores rows as list-of-dicts. Provides zero-copy conversion
-    to Polars and optional conversion to pandas.
+    After normalization, ``items`` contains canonical rows::
+
+        [{"科目": "売上高", "当期": 45095325, "前期": 37154298}, ...]
+
+    Original parsed data is preserved in ``raw_items`` for advanced use.
 
     Attributes:
-        items: Raw row data. Each dict maps column names to values.
-        label: Human-readable label (e.g. ``"BalanceSheet"``).
+        items: Financial data rows (normalized when available).
+        raw_items: Original parsed rows before normalization.
+        label: Human-readable label (e.g. ``"IncomeStatement"``).
     """
 
     items: list[dict[str, Any]] = Field(default_factory=list)
+    raw_items: list[dict[str, Any]] = Field(default_factory=list)
     label: str = ""
+
+    def __getitem__(self, label: str) -> dict[str, Any]:
+        """Look up a line item by its Japanese label.
+
+        >>> stmt.income_statement["売上高"]
+        {"当期": 45095325, "前期": 37154298}
+        """
+        for item in self.items:
+            if item.get("科目") == label:
+                return {k: v for k, v in item.items() if k != "科目"}
+        raise KeyError(f"'{label}' not found in {self.label}")
+
+    def get(self, label: str, default: Any = None) -> Any:
+        """Look up a line item, returning *default* if not found."""
+        try:
+            return self[label]
+        except KeyError:
+            return default
+
+    @property
+    def labels(self) -> list[str]:
+        """Return all available line item labels (科目)."""
+        return [item["科目"] for item in self.items if "科目" in item]
 
     def to_polars(self) -> pl.DataFrame:
         """Convert to a Polars DataFrame."""
@@ -178,7 +206,7 @@ class StatementData(BaseModel):
         return self.to_polars().to_pandas()
 
     def to_dicts(self) -> list[dict[str, Any]]:
-        """Return raw list-of-dicts representation."""
+        """Return list-of-dicts representation."""
         return self.items
 
     def __len__(self) -> int:

@@ -30,6 +30,7 @@ from loguru import logger
 
 from edinet_mcp._cache import DiskCache
 from edinet_mcp._config import get_settings
+from edinet_mcp._normalize import normalize_statement
 from edinet_mcp._rate_limiter import RateLimiter
 from edinet_mcp.models import (
     Company,
@@ -363,13 +364,14 @@ class EdinetClient:
         return self._parse_filing(filing, zip_path)
 
     def _parse_filing(self, filing: Filing, zip_path: Path) -> FinancialStatement:
-        """Extract and parse XBRL from a downloaded ZIP."""
+        """Extract, parse, and normalize XBRL from a downloaded ZIP."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             with zipfile.ZipFile(zip_path, "r") as zf:
                 _safe_extractall(zf, tmp)
 
-            return self._parser.parse_directory(filing, tmp)
+            raw = self._parser.parse_directory(filing, tmp)
+            return normalize_statement(raw)
 
     # ------------------------------------------------------------------
     # Company search (using EDINET code list)

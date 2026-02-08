@@ -16,3 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rate limiter (sync + async)
 - J-GAAP / IFRS / US-GAAP detection
 - Polars and pandas DataFrame export
+
+### Known Limitations
+- XBRL parsing uses first-match strategy per statement type; data split across multiple XBRL instance files within a single filing may be incomplete
+- MCP server tools use synchronous I/O internally (acceptable for single-user, rate-limited usage)

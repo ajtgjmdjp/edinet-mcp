@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-02-10
+
+### Fixed
+- Fix `get_filings()` returning 0 results when passed `datetime.datetime` objects instead of `datetime.date`. The `_to_date()` helper now correctly converts `datetime.datetime` to `datetime.date` by checking for the more specific type first.
+
+### Documentation
+- Add `Filing` object attribute reference to README (all 10 attributes documented with examples)
+- Add example of accessing `Filing` attributes (`description`, `filing_date`, `doc_id`, etc.)
+- Clarify `get_financial_statements()` usage patterns (by `edinet_code` + `period`, not by `doc_id`)
+
 ## [0.1.1] - 2026-02-08
 
 ### Fixed

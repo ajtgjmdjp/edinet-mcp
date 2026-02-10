@@ -143,11 +143,24 @@ filings: list[Filing] = client.get_filings(
     doc_type="annual_report",
 )
 
-# Financial statements
+# Access Filing attributes
+for filing in filings:
+    print(filing.description)    # "有価証券報告書－第121期(...)"
+    print(filing.filing_date)    # datetime.date(2025, 6, 18)
+    print(filing.doc_id)         # "S100VWVY"
+    print(filing.company_name)   # "トヨタ自動車株式会社"
+    print(filing.period_start)   # datetime.date(2024, 4, 1)
+    print(filing.period_end)     # datetime.date(2025, 3, 31)
+
+# Financial statements (by edinet_code + period)
 stmt: FinancialStatement = client.get_financial_statements(
     edinet_code="E02144",
-    period="2024",
+    period="2024",  # Filing year (not fiscal year)
 )
+
+# Or get the most recent filing (within past 365 days)
+stmt = client.get_financial_statements(edinet_code="E02144")
+
 df = stmt.income_statement.to_polars()  # Polars DataFrame
 df = stmt.income_statement.to_pandas()  # pandas DataFrame (optional dep)
 ```
@@ -170,6 +183,24 @@ len(stmt.balance_sheet)           # number of line items
 
 # Raw XBRL data preserved
 stmt.income_statement.raw_items   # original pre-normalization data
+```
+
+### `Filing`
+
+Filing objects returned by `get_filings()` have the following attributes:
+
+```python
+filing.doc_id          # str: Document ID (e.g., "S100VWVY")
+filing.edinet_code     # str: Company EDINET code (e.g., "E02144")
+filing.company_name    # str: Company name
+filing.description     # str: Document description (e.g., "有価証券報告書－第121期(...)")
+filing.filing_date     # datetime.date: Submission date
+filing.period_start    # datetime.date | None: Reporting period start
+filing.period_end      # datetime.date | None: Reporting period end
+filing.doc_type        # DocType: Document type enum
+filing.has_xbrl        # bool: XBRL data available
+filing.has_pdf         # bool: PDF available
+filing.has_csv         # bool: CSV available
 ```
 
 ### Normalization

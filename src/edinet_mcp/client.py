@@ -479,7 +479,10 @@ class EdinetClient:
 # ------------------------------------------------------------------
 
 
-def _to_date(value: str | datetime.date) -> datetime.date:
+def _to_date(value: str | datetime.date | datetime.datetime) -> datetime.date:
+    # Check datetime.datetime first (it's a subclass of datetime.date)
+    if isinstance(value, datetime.datetime):
+        return value.date()
     if isinstance(value, datetime.date):
         return value
     return datetime.date.fromisoformat(value)

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-02-11
+
+### Added
+- **Comprehensive normalization**: Expanded from 73 to 140 financial line items (PL: 35, BS: 72, CF: 33)
+  - SGA expense breakdown (personnel, advertising, rent, utilities, etc.)
+  - Inventory details (merchandise, products, work-in-progress, raw materials, supplies)
+  - PPE breakdown (buildings, structures, machinery, vehicles, tools, land, construction in progress)
+  - Intangible assets (software, patents, trademarks)
+  - AOCI components (unrealized gains/losses on securities, foreign currency translation, pension adjustments)
+  - M&A related items (acquisition/disposal of subsidiary shares)
+- **Expanded financial metrics**: Increased from 13 to 26 indicators across 6 categories
+  - Efficiency metrics (5): Asset turnover ratios
+  - Growth metrics (3): Year-over-year growth rates
+  - Enhanced cash flow metrics (6): Operating CF, Free CF, and CF margins
+  - Additional stability metrics: Quick ratio, debt ratio, fixed ratio, fixed long-term suitability ratio
+- **Comprehensive validation system**
+  - Input validation: EDINET code format (`^E\d{5}$`), period format (`^\d{4}$`), document ID validation
+  - Data consistency checks: Balance sheet equation, P&L consistency, abnormal value detection
+  - Automatic validation on `get_financial_statements()` with `FinancialDataWarning` for quality issues
+- **Type safety improvements**
+  - Added `Literal` types: `PeriodLabel`, `StatementType`, `MetricCategory`
+  - Added `TypedDict` classes for all metric outputs: `ProfitabilityMetrics`, `StabilityMetrics`, `EfficiencyMetrics`, `GrowthMetrics`, `CashFlowMetrics`, `RawValues`
+
+### Security
+- API key sanitization in HTTP error messages (prevents accidental key leakage in logs)
+- XXE attack protection via `defusedxml` for XBRL parsing (replaces `xml.etree.ElementTree`)
+- ZIP bomb and path traversal prevention with strict file count/size limits and containment checks
+- Input format validation to prevent injection attacks
+
+### Changed
+- All tests passing (115 total, +23 validation tests)
+
 ## [0.2.1] - 2026-02-10
 
 ### Fixed

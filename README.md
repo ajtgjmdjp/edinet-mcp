@@ -213,7 +213,7 @@ edinet-mcp automatically normalizes XBRL element names across accounting standar
 | IFRS | `Revenue` | 売上高 |
 | US-GAAP | `Revenues` | 売上高 |
 
-Mappings are defined in [`taxonomy.yaml`](src/edinet_mcp/data/taxonomy.yaml) — 57 items covering BS (23), PL (17), and CF (17). Add new mappings by editing the YAML file, no code changes needed.
+Mappings are defined in [`taxonomy.yaml`](src/edinet_mcp/data/taxonomy.yaml) — 140 items covering PL (35), BS (72), and CF (33). Add new mappings by editing the YAML file, no code changes needed.
 
 ```python
 from edinet_mcp import get_taxonomy_labels

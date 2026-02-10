@@ -32,6 +32,7 @@ from edinet_mcp._cache import DiskCache
 from edinet_mcp._config import get_settings
 from edinet_mcp._normalize import normalize_statement
 from edinet_mcp._rate_limiter import RateLimiter
+from edinet_mcp._validation import validate_financial_statement
 from edinet_mcp.models import (
     Company,
     DocType,
@@ -45,6 +46,9 @@ _MAX_DATE_RANGE_DAYS = 366
 
 # Pattern for valid EDINET document IDs (e.g. "S100VVC2")
 _DOC_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
+
+# Pattern for valid EDINET company codes (e.g. "E02144")
+_EDINET_CODE_PATTERN = re.compile(r"^E\d{5}$")
 
 # EDINET API v2 document retrieval type parameter
 _DOC_RETRIEVE_XBRL = 1
@@ -71,6 +75,40 @@ def _is_valid_zip(path: Path) -> bool:
             return f.read(2) == _ZIP_MAGIC
     except OSError:
         return False
+
+
+def _validate_edinet_code(edinet_code: str) -> None:
+    """Validate EDINET company code format.
+
+    Args:
+        edinet_code: Code to validate (e.g. "E02144").
+
+    Raises:
+        ValueError: If the code format is invalid.
+    """
+    if not edinet_code or not _EDINET_CODE_PATTERN.match(edinet_code):
+        msg = (
+            f"Invalid EDINET code: {edinet_code!r}. "
+            "Expected format: E followed by 5 digits (e.g., 'E02144')"
+        )
+        raise ValueError(msg)
+
+
+def _validate_period(period: str) -> None:
+    """Validate fiscal period format.
+
+    Args:
+        period: Fiscal year to validate (e.g. "2024").
+
+    Raises:
+        ValueError: If the period format is invalid.
+    """
+    if not period or not re.match(r"^\d{4}$", period):
+        msg = (
+            f"Invalid period: {period!r}. "
+            "Expected 4-digit year (e.g., '2024')"
+        )
+        raise ValueError(msg)
 
 
 class EdinetClient:
@@ -184,7 +222,14 @@ class EdinetClient:
 
         Returns:
             List of :class:`Filing` objects matching the criteria.
+
+        Raises:
+            ValueError: If edinet_code format is invalid or date range is too large.
         """
+        # Validate edinet_code if provided
+        if edinet_code is not None:
+            _validate_edinet_code(edinet_code)
+
         if date is not None:
             dates = [_to_date(date)]
         elif start_date is not None:
@@ -331,8 +376,13 @@ class EdinetClient:
             :class:`FinancialStatement` with BS, PL, CF data.
 
         Raises:
-            ValueError: If no matching filing is found.
+            ValueError: If no matching filing is found or invalid parameters.
         """
+        # Validate inputs
+        _validate_edinet_code(edinet_code)
+        if period:
+            _validate_period(period)
+
         # Determine date range for search
         if period:
             year = int(period)
@@ -371,7 +421,12 @@ class EdinetClient:
                 _safe_extractall(zf, tmp)
 
             raw = self._parser.parse_directory(filing, tmp)
-            return normalize_statement(raw)
+            stmt = normalize_statement(raw)
+
+            # Perform data consistency checks
+            validate_financial_statement(stmt)
+
+            return stmt
 
     # ------------------------------------------------------------------
     # Company search (using EDINET code list)
@@ -403,9 +458,16 @@ class EdinetClient:
     def get_company(self, edinet_code: str) -> Company:
         """Look up a company by its exact EDINET code.
 
+        Args:
+            edinet_code: Company's EDINET code (e.g. ``"E02144"``).
+
+        Returns:
+            :class:`Company` object with company information.
+
         Raises:
-            ValueError: If the code is not found.
+            ValueError: If the code format is invalid or not found.
         """
+        _validate_edinet_code(edinet_code)
         for c in self._get_company_list():
             if c.edinet_code == edinet_code:
                 return c

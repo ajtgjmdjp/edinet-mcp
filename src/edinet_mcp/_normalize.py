@@ -19,7 +19,7 @@ from typing import Any
 
 import yaml
 
-from edinet_mcp.models import FinancialStatement, StatementData
+from edinet_mcp.models import FinancialStatement, PeriodLabel, StatementData, StatementType
 
 # ---------------------------------------------------------------------------
 # Taxonomy loading (cached)
@@ -91,7 +91,7 @@ def _extract_value(item: dict[str, Any]) -> int | float | None:
     return None
 
 
-def _extract_period(item: dict[str, Any]) -> str:
+def _extract_period(item: dict[str, Any]) -> PeriodLabel:
     """Determine the period label (当期 or 前期).
 
     Checks EDINET TSV's ``相対年度`` column first, then falls back
@@ -100,7 +100,7 @@ def _extract_period(item: dict[str, Any]) -> str:
     # EDINET TSV format
     period = str(item.get("相対年度", ""))
     if period in ("当期", "前期", "前々期"):
-        return period
+        return period  # type: ignore[return-value]
 
     # XBRL context-based detection
     ctx = str(item.get("context", item.get("コンテキストID", "")))
@@ -165,7 +165,7 @@ def _normalize_items(
 
 
 def get_taxonomy_labels(
-    statement_type: str = "income_statement",
+    statement_type: StatementType = "income_statement",
 ) -> list[dict[str, str]]:
     """Return available taxonomy labels for a statement type.
 

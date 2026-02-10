@@ -8,10 +8,23 @@ from __future__ import annotations
 
 import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 import polars as pl
 from pydantic import BaseModel, Field
+
+# ---------------------------------------------------------------------------
+# Type Aliases
+# ---------------------------------------------------------------------------
+
+# Period labels used in normalized financial statements
+PeriodLabel = Literal["当期", "前期", "前々期"]
+
+# Statement type identifiers
+StatementType = Literal["income_statement", "balance_sheet", "cash_flow_statement", "cash_flow"]
+
+# Financial metric category identifiers
+MetricCategory = Literal["profitability", "stability", "cash_flow", "raw_values"]
 
 # ---------------------------------------------------------------------------
 # Enums

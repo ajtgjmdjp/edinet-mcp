@@ -36,6 +36,50 @@ income_statement:
     elements:
       - SellingGeneralAndAdministrativeExpenses
 
+  # SGA breakdown (commonly disclosed items)
+  - id: personnel_expenses
+    label: 人件費
+    label_en: Personnel Expenses
+    elements:
+      - PersonnelExpenses
+      - SalariesAndWages
+
+  - id: advertising_expenses
+    label: 広告宣伝費
+    label_en: Advertising Expenses
+    elements:
+      - AdvertisingExpenses
+
+  - id: rent_expenses
+    label: 地代家賃
+    label_en: Rent Expenses
+    elements:
+      - RentExpenses
+
+  - id: travel_expenses
+    label: 旅費交通費
+    label_en: Travel and Transportation Expenses
+    elements:
+      - TravelAndTransportationExpenses
+
+  - id: communication_expenses
+    label: 通信費
+    label_en: Communication Expenses
+    elements:
+      - CommunicationExpenses
+
+  - id: utilities_expenses
+    label: 水道光熱費
+    label_en: Utilities
+    elements:
+      - UtilitiesExpenses
+
+  - id: supplies_expenses
+    label: 消耗品費
+    label_en: Supplies Expenses
+    elements:
+      - SuppliesExpenses
+
   - id: operating_income
     label: 営業利益
     label_en: Operating Income
@@ -49,11 +93,41 @@ income_statement:
     elements:
       - NonOperatingIncome
 
+  - id: interest_income
+    label: 受取利息
+    label_en: Interest Income
+    elements:
+      - InterestIncome
+
+  - id: dividend_income
+    label: 受取配当金
+    label_en: Dividend Income
+    elements:
+      - DividendIncome
+
+  - id: fx_gain
+    label: 為替差益
+    label_en: Foreign Exchange Gain
+    elements:
+      - ForeignExchangeGain
+
   - id: non_operating_expenses
     label: 営業外費用
     label_en: Non-Operating Expenses
     elements:
       - NonOperatingExpenses
+
+  - id: interest_expense
+    label: 支払利息
+    label_en: Interest Expense
+    elements:
+      - InterestExpense
+
+  - id: fx_loss
+    label: 為替差損
+    label_en: Foreign Exchange Loss
+    elements:
+      - ForeignExchangeLoss
 
   - id: ordinary_income
     label: 経常利益
@@ -72,6 +146,12 @@ income_statement:
     label_en: Extraordinary Loss
     elements:
       - ExtraordinaryLoss
+
+  - id: impairment_loss
+    label: 減損損失
+    label_en: Impairment Loss
+    elements:
+      - ImpairmentLoss
 
   - id: income_before_tax
     label: 税引前当期純利益
@@ -118,6 +198,33 @@ income_statement:
     elements:
       - DepreciationAndAmortization
 
+  - id: amortization_of_goodwill
+    label: のれん償却額
+    label_en: Amortization of Goodwill
+    elements:
+      - AmortizationOfGoodwill
+
+  - id: equity_in_earnings
+    label: 持分法による投資損益
+    label_en: Equity in Earnings of Affiliates
+    elements:
+      - ShareOfProfitLossOfInvestmentsAccountedForUsingEquityMethod
+      - EquityInEarningsOfAffiliates
+
+  - id: gain_on_sale_of_fixed_assets
+    label: 固定資産売却益
+    label_en: Gain on Sale of Fixed Assets
+    elements:
+      - GainOnSaleOfPropertyPlantAndEquipment
+      - GainOnSaleOfNoncurrentAssets
+
+  - id: loss_on_sale_of_fixed_assets
+    label: 固定資産売却損
+    label_en: Loss on Sale of Fixed Assets
+    elements:
+      - LossOnSaleOfPropertyPlantAndEquipment
+      - LossOnSaleOfNoncurrentAssets
+
   - id: rd_expenses
     label: 研究開発費
     label_en: R&D Expenses
@@ -146,6 +253,19 @@ balance_sheet:
       - NotesAndAccountsReceivableTrade
       - AccountsReceivableTrade
 
+  - id: accounts_receivable
+    label: 売掛金
+    label_en: Accounts Receivable
+    elements:
+      - AccountsReceivableTrade
+      - TradeReceivables
+
+  - id: allowance_for_doubtful_accounts
+    label: 貸倒引当金
+    label_en: Allowance for Doubtful Accounts
+    elements:
+      - AllowanceForDoubtfulAccounts
+
   - id: inventories
     label: 棚卸資産
     label_en: Inventories
@@ -153,17 +273,61 @@ balance_sheet:
       - Inventories
       - MerchandiseAndFinishedGoods
 
+  # Inventory breakdown (manufacturing companies)
+  - id: merchandise
+    label: 商品
+    label_en: Merchandise
+    elements:
+      - Merchandise
+
+  - id: finished_goods
+    label: 製品
+    label_en: Finished Goods
+    elements:
+      - FinishedGoods
+
+  - id: work_in_process
+    label: 仕掛品
+    label_en: Work in Process
+    elements:
+      - WorkInProcess
+
+  - id: raw_materials
+    label: 原材料
+    label_en: Raw Materials
+    elements:
+      - RawMaterials
+      - RawMaterialsAndSupplies
+
+  - id: supplies_inventory
+    label: 貯蔵品
+    label_en: Supplies
+    elements:
+      - Supplies
+
   - id: short_term_securities
     label: 有価証券
     label_en: Short-term Securities
     elements:
       - ShortTermInvestmentSecurities
 
+  - id: prepaid_expenses
+    label: 前払費用
+    label_en: Prepaid Expenses
+    elements:
+      - PrepaidExpenses
+
   - id: other_current_assets
     label: その他の流動資産
     label_en: Other Current Assets
     elements:
       - OtherCurrentAssets
+
+  - id: advance_payments
+    label: 仮払金
+    label_en: Advance Payments
+    elements:
+      - AdvancePayments
 
   - id: noncurrent_assets
     label: 固定資産
@@ -178,11 +342,86 @@ balance_sheet:
       - PropertyPlantAndEquipment
       - PropertyPlantAndEquipmentNet
 
+  # PPE breakdown
+  - id: buildings
+    label: 建物
+    label_en: Buildings
+    elements:
+      - Buildings
+      - BuildingsNet
+
+  - id: structures
+    label: 構築物
+    label_en: Structures
+    elements:
+      - Structures
+      - StructuresNet
+
+  - id: machinery_and_equipment
+    label: 機械装置
+    label_en: Machinery and Equipment
+    elements:
+      - MachineryAndEquipment
+      - MachineryEquipmentAndVehicles
+      - MachineryAndEquipmentNet
+
+  - id: vehicles
+    label: 車両運搬具
+    label_en: Vehicles
+    elements:
+      - Vehicles
+      - VehiclesNet
+
+  - id: tools_furniture_and_fixtures
+    label: 工具器具備品
+    label_en: Tools, Furniture and Fixtures
+    elements:
+      - ToolsFurnitureAndFixtures
+      - ToolsFurnitureAndFixturesNet
+
+  - id: land
+    label: 土地
+    label_en: Land
+    elements:
+      - Land
+
+  - id: construction_in_progress
+    label: 建設仮勘定
+    label_en: Construction in Progress
+    elements:
+      - ConstructionInProgress
+
+  - id: leased_assets
+    label: リース資産
+    label_en: Leased Assets
+    elements:
+      - LeasedAssets
+      - RightOfUseAssets
+
   - id: intangible_assets
     label: 無形固定資産
     label_en: Intangible Assets
     elements:
       - IntangibleAssets
+
+  # Intangible asset breakdown
+  - id: software
+    label: ソフトウェア
+    label_en: Software
+    elements:
+      - Software
+
+  - id: patent_rights
+    label: 特許権
+    label_en: Patent Rights
+    elements:
+      - PatentRights
+
+  - id: trademark_rights
+    label: 商標権
+    label_en: Trademark Rights
+    elements:
+      - TrademarkRights
 
   - id: goodwill
     label: のれん
@@ -201,6 +440,38 @@ balance_sheet:
     label_en: Investment Securities
     elements:
       - InvestmentSecurities
+
+  - id: investments_in_affiliates
+    label: 関係会社株式
+    label_en: Investments in Affiliates
+    elements:
+      - InvestmentsInAffiliates
+      - SharesOfSubsidiariesAndAffiliates
+
+  - id: guarantee_deposits
+    label: 敷金及び保証金
+    label_en: Guarantee Deposits
+    elements:
+      - GuaranteeDeposits
+      - SecurityDeposits
+
+  - id: long_term_loans_receivable
+    label: 長期貸付金
+    label_en: Long-term Loans Receivable
+    elements:
+      - LongTermLoansReceivable
+
+  - id: long_term_prepaid_expenses
+    label: 長期前払費用
+    label_en: Long-term Prepaid Expenses
+    elements:
+      - LongTermPrepaidExpenses
+
+  - id: deferred_tax_assets
+    label: 繰延税金資産
+    label_en: Deferred Tax Assets
+    elements:
+      - DeferredTaxAssets
 
   - id: total_assets
     label: 資産合計
@@ -228,11 +499,57 @@ balance_sheet:
       - NotesAndAccountsPayableTrade
       - AccountsPayableTrade
 
+  - id: accounts_payable
+    label: 買掛金
+    label_en: Accounts Payable
+    elements:
+      - AccountsPayableTrade
+      - TradePayables
+
+  - id: accrued_expenses
+    label: 未払費用
+    label_en: Accrued Expenses
+    elements:
+      - AccruedExpenses
+
+  - id: income_taxes_payable
+    label: 未払法人税等
+    label_en: Income Taxes Payable
+    elements:
+      - IncomeTaxesPayable
+
+  - id: accounts_payable_other
+    label: 未払金
+    label_en: Accounts Payable - Other
+    elements:
+      - AccountsPayableOther
+      - OtherAccountsPayable
+
+  - id: provision_for_bonuses
+    label: 賞与引当金
+    label_en: Provision for Bonuses
+    elements:
+      - ProvisionForBonuses
+      - AccruedBonuses
+
   - id: current_portion_lt_loans
     label: 1年内返済予定の長期借入金
     label_en: Current Portion of LT Loans
     elements:
       - CurrentPortionOfLongTermLoansPayable
+
+  - id: advances_received
+    label: 前受金
+    label_en: Advances Received
+    elements:
+      - AdvancesReceived
+      - ContractLiabilities
+
+  - id: suspense_receipt
+    label: 仮受金
+    label_en: Suspense Receipt
+    elements:
+      - SuspenseReceipt
 
   - id: noncurrent_liabilities
     label: 固定負債
@@ -251,6 +568,32 @@ balance_sheet:
     label_en: Bonds Payable
     elements:
       - BondsPayable
+
+  - id: retirement_benefit_liability
+    label: 退職給付引当金
+    label_en: Retirement Benefit Liability
+    elements:
+      - RetirementBenefitLiability
+      - ProvisionForRetirementBenefits
+
+  - id: lease_liabilities
+    label: リース債務
+    label_en: Lease Liabilities
+    elements:
+      - LeaseLiabilities
+
+  - id: asset_retirement_obligations
+    label: 資産除去債務
+    label_en: Asset Retirement Obligations
+    elements:
+      - AssetRetirementObligations
+      - ProvisionForAssetRetirementObligations
+
+  - id: deferred_tax_liabilities
+    label: 繰延税金負債
+    label_en: Deferred Tax Liabilities
+    elements:
+      - DeferredTaxLiabilities
 
   - id: total_liabilities
     label: 負債合計
@@ -294,6 +637,40 @@ balance_sheet:
     label_en: Accumulated OCI
     elements:
       - AccumulatedOtherComprehensiveIncome
+
+  # AOCI breakdown
+  - id: valuation_difference_securities
+    label: その他有価証券評価差額金
+    label_en: Valuation Difference on Available-for-Sale Securities
+    elements:
+      - ValuationDifferenceOnAvailableForSaleSecurities
+      - NetUnrealizedGainsLossesOnAvailableForSaleSecurities
+
+  - id: foreign_currency_translation_adjustment
+    label: 為替換算調整勘定
+    label_en: Foreign Currency Translation Adjustment
+    elements:
+      - ForeignCurrencyTranslationAdjustment
+
+  - id: remeasurements_of_defined_benefit_plans
+    label: 退職給付に係る調整累計額
+    label_en: Remeasurements of Defined Benefit Plans
+    elements:
+      - RemeasurementsOfDefinedBenefitPlans
+
+  - id: deferred_hedge_gains_losses
+    label: 繰延ヘッジ損益
+    label_en: Deferred Hedge Gains/Losses
+    elements:
+      - DeferredHedgeGainsLosses
+      - NetDeferredGainsLossesOnHedges
+
+  - id: subscription_rights_to_shares
+    label: 新株予約権
+    label_en: Subscription Rights to Shares
+    elements:
+      - SubscriptionRightsToShares
+      - StockAcquisitionRights
 
   - id: non_controlling_interests
     label: 非支配株主持分
@@ -370,6 +747,50 @@ cash_flow:
     elements:
       - DepreciationAndAmortizationOpeCF
 
+  - id: impairment_loss_cf
+    label: 減損損失
+    label_en: Impairment Loss (CF)
+    elements:
+      - ImpairmentLossOpeCF
+
+  - id: allowance_for_doubtful_accounts_change
+    label: 貸倒引当金の増減額
+    label_en: Change in Allowance for Doubtful Accounts
+    elements:
+      - IncreaseDecreaseInAllowanceForDoubtfulAccounts
+
+  - id: amortization_of_goodwill_cf
+    label: のれん償却額
+    label_en: Amortization of Goodwill (CF)
+    elements:
+      - AmortizationOfGoodwillOpeCF
+
+  - id: equity_in_earnings_cf
+    label: 持分法による投資損益
+    label_en: Equity in Earnings (CF)
+    elements:
+      - ShareOfProfitLossOfInvestmentsAccountedForUsingEquityMethodOpeCF
+
+  - id: dividends_received_cf
+    label: 配当金の受取額
+    label_en: Dividends Received
+    elements:
+      - DividendsReceivedOpeCF
+      - DividendsReceivedInvCF
+
+  - id: change_in_retirement_benefit_liability
+    label: 退職給付に係る負債の増減額
+    label_en: Change in Retirement Benefit Liability
+    elements:
+      - IncreaseDecreaseInRetirementBenefitLiability
+      - IncreaseDecreaseInNetDefinedBenefitLiability
+
+  - id: change_in_provisions
+    label: 引当金の増減額
+    label_en: Change in Provisions
+    elements:
+      - IncreaseDecreaseInProvision
+
   - id: change_in_receivables
     label: 売上債権の増減額
     label_en: Change in Receivables
@@ -388,6 +809,12 @@ cash_flow:
     elements:
       - IncreaseDecreaseInNotesAndAccountsPayable
 
+  - id: income_taxes_paid
+    label: 法人税等の支払額
+    label_en: Income Taxes Paid
+    elements:
+      - IncomeTaxesPaid
+
   # Investing CF details
   - id: purchase_ppe
     label: 有形固定資産の取得による支出
@@ -395,13 +822,65 @@ cash_flow:
     elements:
       - PurchaseOfPropertyPlantAndEquipment
 
+  - id: proceeds_from_sale_of_ppe
+    label: 有形固定資産の売却による収入
+    label_en: Proceeds from Sale of PPE
+    elements:
+      - ProceedsFromSaleOfPropertyPlantAndEquipment
+
   - id: purchase_investments
     label: 投資有価証券の取得による支出
     label_en: Purchase of Investments
     elements:
       - PurchaseOfInvestmentSecurities
 
+  - id: purchase_of_subsidiaries_stock
+    label: 子会社株式の取得による支出
+    label_en: Purchase of Subsidiaries' Stock
+    elements:
+      - PurchaseOfSharesOfSubsidiaries
+      - PurchaseOfSharesOfSubsidiariesAndAffiliates
+
+  - id: proceeds_from_sale_of_subsidiaries_stock
+    label: 子会社株式の売却による収入
+    label_en: Proceeds from Sale of Subsidiaries' Stock
+    elements:
+      - ProceedsFromSaleOfSharesOfSubsidiaries
+      - ProceedsFromSaleOfSharesOfSubsidiariesAndAffiliates
+
+  - id: payments_of_loans_receivable
+    label: 貸付けによる支出
+    label_en: Payments of Loans Receivable
+    elements:
+      - PaymentsOfLoansReceivable
+
+  - id: collection_of_loans_receivable
+    label: 貸付金の回収による収入
+    label_en: Collection of Loans Receivable
+    elements:
+      - CollectionOfLoansReceivable
+      - ProceedsFromCollectionOfLoansReceivable
+
+  - id: purchase_of_subsidiaries_resulting_in_change_in_scope
+    label: 連結の範囲の変更を伴う子会社株式の取得による支出
+    label_en: Purchase of Subsidiaries Resulting in Change in Scope
+    elements:
+      - PurchaseOfSharesOfSubsidiariesResultingInChangeInScopeOfConsolidation
+
   # Financing CF details
+  - id: proceeds_from_borrowings
+    label: 借入れによる収入
+    label_en: Proceeds from Borrowings
+    elements:
+      - ProceedsFromLongTermLoansPayable
+      - ProceedsFromShortTermLoansPayable
+
+  - id: repayment_of_borrowings
+    label: 借入金の返済による支出
+    label_en: Repayment of Borrowings
+    elements:
+      - RepaymentsOfLongTermLoansPayable
+      - RepaymentsOfShortTermLoansPayable
   - id: bond_issuance
     label: 社債の発行による収入
     label_en: Bond Issuance Proceeds

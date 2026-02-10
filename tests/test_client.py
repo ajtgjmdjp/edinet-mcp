@@ -16,6 +16,8 @@ from edinet_mcp.client import (
     _date_range,
     _safe_extractall,
     _to_date,
+    _validate_edinet_code,
+    _validate_period,
 )
 from edinet_mcp.models import Company
 
@@ -164,3 +166,87 @@ class TestSafeExtractall:
         buf.seek(0)
         with zipfile.ZipFile(buf) as zf, pytest.raises(ValueError, match="too many files"):
             _safe_extractall(zf, tmp_path)
+
+class TestValidation:
+    """Tests for input validation functions."""
+
+    def test_validate_edinet_code_valid(self) -> None:
+        """Valid EDINET codes pass validation."""
+        _validate_edinet_code("E02144")
+        _validate_edinet_code("E00001")
+        _validate_edinet_code("E99999")
+
+    def test_validate_edinet_code_invalid_format(self) -> None:
+        """Invalid EDINET code formats raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            _validate_edinet_code("E0214")  # Too short
+        
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            _validate_edinet_code("E021444")  # Too long
+        
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            _validate_edinet_code("F02144")  # Wrong prefix
+        
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            _validate_edinet_code("E0214A")  # Contains letter
+        
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            _validate_edinet_code("")  # Empty string
+
+    def test_validate_period_valid(self) -> None:
+        """Valid period strings pass validation."""
+        _validate_period("2024")
+        _validate_period("2000")
+        _validate_period("2099")
+
+    def test_validate_period_invalid_format(self) -> None:
+        """Invalid period formats raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid period"):
+            _validate_period("24")  # Too short
+        
+        with pytest.raises(ValueError, match="Invalid period"):
+            _validate_period("20244")  # Too long
+        
+        with pytest.raises(ValueError, match="Invalid period"):
+            _validate_period("202A")  # Contains letter
+        
+        with pytest.raises(ValueError, match="Invalid period"):
+            _validate_period("")  # Empty string
+
+
+class TestClientValidation:
+    """Tests for client methods with validation."""
+
+    def test_get_company_invalid_code(self) -> None:
+        """get_company rejects invalid EDINET codes."""
+        client = EdinetClient(api_key="test")
+        
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            client.get_company("E0214")  # Too short
+        
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            client.get_company("INVALID")
+
+    def test_get_financial_statements_invalid_code(self) -> None:
+        """get_financial_statements rejects invalid EDINET codes."""
+        client = EdinetClient(api_key="test")
+        
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            client.get_financial_statements("E0214")
+
+    def test_get_financial_statements_invalid_period(self) -> None:
+        """get_financial_statements rejects invalid period."""
+        client = EdinetClient(api_key="test")
+        
+        with pytest.raises(ValueError, match="Invalid period"):
+            client.get_financial_statements("E02144", period="24")
+        
+        with pytest.raises(ValueError, match="Invalid period"):
+            client.get_financial_statements("E02144", period="202A")
+
+    def test_get_filings_invalid_edinet_code(self) -> None:
+        """get_filings rejects invalid EDINET codes."""
+        client = EdinetClient(api_key="test")
+        
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            client.get_filings(edinet_code="E0214")

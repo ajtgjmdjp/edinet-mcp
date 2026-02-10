@@ -202,13 +202,14 @@ async def get_financial_metrics(
     """
     stmt = await asyncio.to_thread(_fetch_stmt, edinet_code, period, doc_type)
     metrics = calculate_metrics(stmt)
-    metrics["filing"] = {
+    result: dict[str, Any] = dict(metrics)
+    result["filing"] = {
         "doc_id": stmt.filing.doc_id,
         "company_name": stmt.filing.company_name,
         "period_end": stmt.filing.period_end.isoformat() if stmt.filing.period_end else None,
     }
-    metrics["accounting_standard"] = stmt.accounting_standard.value
-    return metrics
+    result["accounting_standard"] = stmt.accounting_standard.value
+    return result
 
 
 @mcp.tool()
@@ -275,7 +276,8 @@ async def list_available_labels(
 
     Returns labels in display order with Japanese and English names.
     """
-    return get_taxonomy_labels(statement_type)
+    # Type assertion: MCP tools receive string args from clients
+    return get_taxonomy_labels(statement_type)  # type: ignore[arg-type]
 
 
 @mcp.tool()

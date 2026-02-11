@@ -104,10 +104,7 @@ def _validate_period(period: str) -> None:
         ValueError: If the period format is invalid.
     """
     if not period or not re.match(r"^\d{4}$", period):
-        msg = (
-            f"Invalid period: {period!r}. "
-            "Expected 4-digit year (e.g., '2024')"
-        )
+        msg = f"Invalid period: {period!r}. Expected 4-digit year (e.g., '2024')"
         raise ValueError(msg)
 
 

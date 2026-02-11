@@ -167,6 +167,7 @@ class TestSafeExtractall:
         with zipfile.ZipFile(buf) as zf, pytest.raises(ValueError, match="too many files"):
             _safe_extractall(zf, tmp_path)
 
+
 class TestValidation:
     """Tests for input validation functions."""
 
@@ -180,16 +181,16 @@ class TestValidation:
         """Invalid EDINET code formats raise ValueError."""
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             _validate_edinet_code("E0214")  # Too short
-        
+
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             _validate_edinet_code("E021444")  # Too long
-        
+
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             _validate_edinet_code("F02144")  # Wrong prefix
-        
+
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             _validate_edinet_code("E0214A")  # Contains letter
-        
+
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             _validate_edinet_code("")  # Empty string
 
@@ -203,13 +204,13 @@ class TestValidation:
         """Invalid period formats raise ValueError."""
         with pytest.raises(ValueError, match="Invalid period"):
             _validate_period("24")  # Too short
-        
+
         with pytest.raises(ValueError, match="Invalid period"):
             _validate_period("20244")  # Too long
-        
+
         with pytest.raises(ValueError, match="Invalid period"):
             _validate_period("202A")  # Contains letter
-        
+
         with pytest.raises(ValueError, match="Invalid period"):
             _validate_period("")  # Empty string
 
@@ -220,33 +221,33 @@ class TestClientValidation:
     def test_get_company_invalid_code(self) -> None:
         """get_company rejects invalid EDINET codes."""
         client = EdinetClient(api_key="test")
-        
+
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             client.get_company("E0214")  # Too short
-        
+
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             client.get_company("INVALID")
 
     def test_get_financial_statements_invalid_code(self) -> None:
         """get_financial_statements rejects invalid EDINET codes."""
         client = EdinetClient(api_key="test")
-        
+
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             client.get_financial_statements("E0214")
 
     def test_get_financial_statements_invalid_period(self) -> None:
         """get_financial_statements rejects invalid period."""
         client = EdinetClient(api_key="test")
-        
+
         with pytest.raises(ValueError, match="Invalid period"):
             client.get_financial_statements("E02144", period="24")
-        
+
         with pytest.raises(ValueError, match="Invalid period"):
             client.get_financial_statements("E02144", period="202A")
 
     def test_get_filings_invalid_edinet_code(self) -> None:
         """get_filings rejects invalid EDINET codes."""
         client = EdinetClient(api_key="test")
-        
+
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             client.get_filings(edinet_code="E0214")

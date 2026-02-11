@@ -153,9 +153,7 @@ def _check_critical_items(stmt: FinancialStatement) -> None:
     pl = stmt.income_statement
 
     # Check for revenue
-    has_revenue = any(
-        label in pl.labels for label in ["売上高", "営業収益", "経常収益"]
-    )
+    has_revenue = any(label in pl.labels for label in ["売上高", "営業収益", "経常収益"])
     if not has_revenue:
         warnings.warn(
             "No revenue line item found in income statement. "
@@ -167,9 +165,7 @@ def _check_critical_items(stmt: FinancialStatement) -> None:
     bs = stmt.balance_sheet
 
     # Check for total assets
-    has_total_assets = any(
-        label in bs.labels for label in ["総資産", "資産合計", "資産の部合計"]
-    )
+    has_total_assets = any(label in bs.labels for label in ["総資産", "資産合計", "資産の部合計"])
     if not has_total_assets:
         warnings.warn(
             "No total assets found in balance sheet. "

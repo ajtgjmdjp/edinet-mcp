@@ -239,16 +239,16 @@ def calculate_metrics(stmt: FinancialStatement) -> FinancialMetrics:
 
     # --- Efficiency (Turnover Ratios) ---
     efficiency: dict[str, float] = {}
-    if (v := _safe_div(revenue, total_assets)) is not None:
-        efficiency["総資産回転率"] = round(v, 2)
-    if (v := _safe_div(revenue, fixed_assets)) is not None:
-        efficiency["固定資産回転率"] = round(v, 2)
-    if (v := _safe_div(revenue, accounts_receivable)) is not None:
-        efficiency["売上債権回転率"] = round(v, 2)
-    if (v := _safe_div(cogs, inventory)) is not None:
-        efficiency["棚卸資産回転率"] = round(v, 2)
-    if (v := _safe_div(revenue, tangible_fixed_assets)) is not None:
-        efficiency["有形固定資産回転率"] = round(v, 2)
+    if (ratio := _safe_div(revenue, total_assets)) is not None:
+        efficiency["総資産回転率"] = round(ratio, 2)
+    if (ratio := _safe_div(revenue, fixed_assets)) is not None:
+        efficiency["固定資産回転率"] = round(ratio, 2)
+    if (ratio := _safe_div(revenue, accounts_receivable)) is not None:
+        efficiency["売上債権回転率"] = round(ratio, 2)
+    if (ratio := _safe_div(cogs, inventory)) is not None:
+        efficiency["棚卸資産回転率"] = round(ratio, 2)
+    if (ratio := _safe_div(revenue, tangible_fixed_assets)) is not None:
+        efficiency["有形固定資産回転率"] = round(ratio, 2)
     if efficiency:
         result["efficiency"] = efficiency
 

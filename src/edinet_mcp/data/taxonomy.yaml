@@ -231,6 +231,52 @@ income_statement:
     elements:
       - ResearchAndDevelopmentExpenses
 
+  - id: deferred_income_tax
+    label: 法人税等調整額
+    label_en: Deferred Income Tax
+    elements:
+      - IncomeTaxesDeferred
+      - DeferredIncomeTaxExpense
+
+  - id: loss_on_disposal_of_fixed_assets
+    label: 固定資産除却損
+    label_en: Loss on Disposal of Fixed Assets
+    elements:
+      - LossOnDisposalOfPropertyPlantAndEquipment
+      - LossOnRetirementOfNoncurrentAssets
+
+  - id: retirement_benefit_expense
+    label: 退職給付費用
+    label_en: Retirement Benefit Expense
+    elements:
+      - RetirementBenefitExpenses
+
+  - id: other_income
+    label: その他の収益
+    label_en: Other Income
+    elements:
+      - OtherIncome
+
+  - id: other_expenses
+    label: その他の費用
+    label_en: Other Expenses
+    elements:
+      - OtherExpenses
+
+  - id: earnings_per_share
+    label: 1株当たり当期純利益
+    label_en: Earnings Per Share
+    elements:
+      - BasicEarningsPerShare
+      - BasicEarningsLossPerShare
+
+  - id: diluted_eps
+    label: 潜在株式調整後1株当たり当期純利益
+    label_en: Diluted EPS
+    elements:
+      - DilutedEarningsPerShare
+      - DilutedEarningsLossPerShare
+
 balance_sheet:
   # --- Assets ---
   - id: current_assets
@@ -473,6 +519,25 @@ balance_sheet:
     elements:
       - DeferredTaxAssets
 
+  - id: retirement_benefit_asset
+    label: 退職給付に係る資産
+    label_en: Retirement Benefit Asset
+    elements:
+      - RetirementBenefitAsset
+      - NetDefinedBenefitAsset
+
+  - id: investment_property
+    label: 投資不動産
+    label_en: Investment Property
+    elements:
+      - InvestmentProperty
+
+  - id: contract_assets
+    label: 契約資産
+    label_en: Contract Assets
+    elements:
+      - ContractAssets
+
   - id: total_assets
     label: 資産合計
     label_en: Total Assets
@@ -551,6 +616,18 @@ balance_sheet:
     elements:
       - SuspenseReceipt
 
+  - id: other_current_liabilities
+    label: その他の流動負債
+    label_en: Other Current Liabilities
+    elements:
+      - OtherCurrentLiabilities
+
+  - id: provisions_current
+    label: 引当金（流動）
+    label_en: Provisions (Current)
+    elements:
+      - ProvisionsCurrent
+
   - id: noncurrent_liabilities
     label: 固定負債
     label_en: Non-current Liabilities
@@ -594,6 +671,19 @@ balance_sheet:
     label_en: Deferred Tax Liabilities
     elements:
       - DeferredTaxLiabilities
+
+  - id: provisions_noncurrent
+    label: 引当金（固定）
+    label_en: Provisions (Non-current)
+    elements:
+      - ProvisionsNoncurrent
+      - ProvisionForLoss
+
+  - id: other_noncurrent_liabilities
+    label: その他の固定負債
+    label_en: Other Non-current Liabilities
+    elements:
+      - OtherNoncurrentLiabilities
 
   - id: total_liabilities
     label: 負債合計
@@ -809,6 +899,19 @@ cash_flow:
     elements:
       - IncreaseDecreaseInNotesAndAccountsPayable
 
+  - id: interest_and_dividends_received
+    label: 利息及び配当金の受取額
+    label_en: Interest and Dividends Received
+    elements:
+      - InterestAndDividendsReceived
+
+  - id: interest_paid_cf
+    label: 利息の支払額
+    label_en: Interest Paid
+    elements:
+      - InterestPaid
+      - InterestExpensesPaid
+
   - id: income_taxes_paid
     label: 法人税等の支払額
     label_en: Income Taxes Paid
@@ -898,6 +1001,37 @@ cash_flow:
     label_en: Dividends Paid
     elements:
       - DividendsPaid
+
+  - id: purchase_intangible_assets
+    label: 無形固定資産の取得による支出
+    label_en: Purchase of Intangible Assets
+    elements:
+      - PurchaseOfIntangibleAssets
+
+  - id: proceeds_from_sale_of_investments
+    label: 投資有価証券の売却による収入
+    label_en: Proceeds from Sale of Investments
+    elements:
+      - ProceedsFromSaleOfInvestmentSecurities
+
+  - id: repayment_of_lease_liabilities
+    label: リース債務の返済による支出
+    label_en: Repayment of Lease Liabilities
+    elements:
+      - RepaymentOfLeaseLiabilities
+      - RepaymentsOfLeaseLiabilities
+
+  - id: net_change_short_term_loans
+    label: 短期借入金の純増減額
+    label_en: Net Change in Short-term Loans
+    elements:
+      - NetIncreaseDecreaseInShortTermLoansPayable
+
+  - id: proceeds_from_issuance_of_shares
+    label: 株式の発行による収入
+    label_en: Proceeds from Issuance of Shares
+    elements:
+      - ProceedsFromIssuanceOfShares
 
   - id: purchase_treasury_shares
     label: 自己株式の取得による支出

@@ -21,6 +21,7 @@ import io
 import json
 import re
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from typing import Any, Literal
@@ -44,6 +45,10 @@ from edinet_mcp.parser import XBRLParser
 # Maximum date range to prevent excessive API calls
 _MAX_DATE_RANGE_DAYS = 366
 
+# Cache TTL settings (seconds)
+_CACHE_TTL_COMPANIES = 30 * 24 * 3600  # 30 days — EDINET code list updates monthly
+_CACHE_TTL_FILINGS = 24 * 3600  # 24 hours — new filings appear daily
+
 # Pattern for valid EDINET document IDs (e.g. "S100VVC2")
 _DOC_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
 
@@ -59,6 +64,9 @@ _DOC_RETRIEVE_ENGLISH = 4
 # EDINET API v2 document list type parameter
 _DOC_LIST_METADATA = 1
 _DOC_LIST_WITH_RESULTS = 2
+
+# HTTP status codes that warrant a retry
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 # ZIP magic bytes
 _ZIP_MAGIC = b"PK"
@@ -138,6 +146,7 @@ class EdinetClient:
 
         self._base_url = settings.edinet_base_url.rstrip("/")
         self._timeout = timeout or settings.request_timeout
+        self._max_retries = settings.max_retries
         self._limiter = RateLimiter(rate_limit or settings.rate_limit_rps)
 
         cache_path = Path(cache_dir) if cache_dir else settings.cache_dir
@@ -170,25 +179,51 @@ class EdinetClient:
             params.update(extra)
         return params
 
+    def _request_with_retry(self, url: str, params: dict[str, Any]) -> httpx.Response:
+        """Perform a rate-limited GET with exponential-backoff retry.
+
+        Retries on 429/5xx status codes and timeouts.
+        """
+        last_exc: BaseException | None = None
+        for attempt in range(self._max_retries + 1):
+            self._limiter.wait()
+            try:
+                resp = self._http.get(url, params=params)
+                if resp.status_code not in _RETRYABLE_STATUS:
+                    resp.raise_for_status()
+                    return resp
+                # Retryable HTTP status
+                last_exc = httpx.HTTPStatusError(
+                    f"HTTP {resp.status_code}",
+                    request=resp.request,
+                    response=resp,
+                )
+            except httpx.TimeoutException as e:
+                last_exc = e
+            except httpx.HTTPError as e:
+                # Non-retryable HTTP errors (4xx except 429)
+                raise _sanitize_http_error(e, self._api_key) from None
+
+            if attempt < self._max_retries:
+                delay = 2**attempt  # 1s, 2s, 4s
+                logger.warning(
+                    f"Retry {attempt + 1}/{self._max_retries} for {url} "
+                    f"after {type(last_exc).__name__} (wait {delay}s)"
+                )
+                time.sleep(delay)
+
+        # All retries exhausted
+        if isinstance(last_exc, httpx.HTTPError):
+            raise _sanitize_http_error(last_exc, self._api_key) from None
+        raise last_exc  # type: ignore[misc]
+
     def _get_json(self, url: str, params: dict[str, Any]) -> Any:
         """Perform a rate-limited GET and return parsed JSON."""
-        self._limiter.wait()
-        try:
-            resp = self._http.get(url, params=params)
-            resp.raise_for_status()
-        except httpx.HTTPError as e:
-            raise _sanitize_http_error(e, self._api_key) from None
-        return resp.json()
+        return self._request_with_retry(url, params).json()
 
     def _get_bytes(self, url: str, params: dict[str, Any]) -> bytes:
         """Perform a rate-limited GET and return raw bytes."""
-        self._limiter.wait()
-        try:
-            resp = self._http.get(url, params=params)
-            resp.raise_for_status()
-        except httpx.HTTPError as e:
-            raise _sanitize_http_error(e, self._api_key) from None
-        return resp.content
+        return self._request_with_retry(url, params).content
 
     # ------------------------------------------------------------------
     # Filing list
@@ -267,7 +302,7 @@ class EdinetClient:
         date_str = date.isoformat()
         cache_params = {"date": date_str, "type": _DOC_LIST_WITH_RESULTS}
 
-        cached = self._cache.get_json("filings", cache_params)
+        cached = self._cache.get_json("filings", cache_params, max_age=_CACHE_TTL_FILINGS)
         if cached is not None:
             return [Filing.from_api_row(row) for row in cached]
 
@@ -380,35 +415,75 @@ class EdinetClient:
         if period:
             _validate_period(period)
 
-        # Determine date range for search
+        # Find the filing — use smart search for period queries
         if period:
-            year = int(period)
-            start = datetime.date(year, 1, 1)
-            end = datetime.date(year, 12, 31)
+            filing = self._find_filing_for_period(edinet_code, int(period), doc_type)
         else:
             end = datetime.date.today()
             start = end - datetime.timedelta(days=365)
+            filings = self.get_filings(
+                start_date=start,
+                end_date=end,
+                edinet_code=edinet_code,
+                doc_type=doc_type,
+            )
+            if not filings:
+                msg = f"No {doc_type} filing found for {edinet_code}"
+                raise ValueError(msg)
+            filing = sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
+        logger.info(f"Using filing {filing.doc_id} ({filing.description})")
 
+        # Download and parse
+        zip_path = self.download_document(filing.doc_id, format="xbrl")
+        return self._parse_filing(filing, zip_path)
+
+    def _find_filing_for_period(
+        self,
+        edinet_code: str,
+        year: int,
+        doc_type: str | DocType,
+    ) -> Filing:
+        """Find a filing by checking likely submission months first.
+
+        Japanese companies typically file annual reports in specific months:
+        - March fiscal year-end → June filing
+        - December fiscal year-end → March filing
+        This avoids scanning all 365 days when a period is specified.
+        """
+        # Most common filing months for Japanese companies
+        priority_ranges = [
+            (datetime.date(year, 6, 1), datetime.date(year, 6, 30)),  # 3月決算→6月提出
+            (datetime.date(year, 3, 1), datetime.date(year, 3, 31)),  # 12月決算→3月提出
+        ]
+        today = datetime.date.today()
+
+        for start, end in priority_ranges:
+            if start > today:
+                continue
+            end = min(end, today)
+            filings = self.get_filings(
+                start_date=start,
+                end_date=end,
+                edinet_code=edinet_code,
+                doc_type=doc_type,
+            )
+            if filings:
+                return sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
+
+        # Fallback: scan the full year
+        logger.debug(f"Priority months missed for {edinet_code}, scanning full year {year}")
+        start = datetime.date(year, 1, 1)
+        end = min(datetime.date(year, 12, 31), today)
         filings = self.get_filings(
             start_date=start,
             end_date=end,
             edinet_code=edinet_code,
             doc_type=doc_type,
         )
-
         if not filings:
-            msg = f"No {doc_type} filing found for {edinet_code}"
-            if period:
-                msg += f" in period {period}"
+            msg = f"No {doc_type} filing found for {edinet_code} in period {year}"
             raise ValueError(msg)
-
-        # Use the most recent filing
-        filing = sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
-        logger.info(f"Using filing {filing.doc_id} ({filing.description})")
-
-        # Download and parse
-        zip_path = self.download_document(filing.doc_id, format="xbrl")
-        return self._parse_filing(filing, zip_path)
+        return sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
 
     def _parse_filing(self, filing: Filing, zip_path: Path) -> FinancialStatement:
         """Extract, parse, and normalize XBRL from a downloaded ZIP."""
@@ -472,7 +547,7 @@ class EdinetClient:
 
     def _get_company_list(self) -> list[Company]:
         """Load the EDINET code list, downloading if necessary."""
-        cached = self._cache.get_json("companies", {"version": "v2"})
+        cached = self._cache.get_json("companies", {"version": "v2"}, max_age=_CACHE_TTL_COMPANIES)
         if cached is not None:
             return [Company(**c) for c in cached]
 

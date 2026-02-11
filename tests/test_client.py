@@ -8,9 +8,11 @@ import zipfile
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from edinet_mcp.client import (
+    _RETRYABLE_STATUS,
     _ZIP_MAX_FILES,
     EdinetClient,
     _date_range,
@@ -251,3 +253,121 @@ class TestClientValidation:
 
         with pytest.raises(ValueError, match="Invalid EDINET code"):
             client.get_filings(edinet_code="E0214")
+
+
+def _mock_response(status_code: int, json_data: object = None) -> httpx.Response:
+    """Build a minimal httpx.Response for testing."""
+    return httpx.Response(
+        status_code=status_code,
+        json=json_data or {},
+        request=httpx.Request("GET", "https://example.com/test"),
+    )
+
+
+def _no_wait_client() -> EdinetClient:
+    """Create a client with rate limiter disabled for fast tests."""
+    client = EdinetClient(api_key="test", rate_limit=100_000.0)
+    return client
+
+
+class TestRetryLogic:
+    """Tests for _request_with_retry exponential backoff."""
+
+    def test_success_on_first_try(self) -> None:
+        """No retry needed when first request succeeds."""
+        client = _no_wait_client()
+        ok = _mock_response(200, {"results": []})
+        client._http = MagicMock()
+        client._http.get.return_value = ok
+
+        result = client._get_json("https://example.com/test", {})
+        assert result == {"results": []}
+        assert client._http.get.call_count == 1
+
+    @patch("edinet_mcp.client.time.sleep")
+    def test_retry_on_503_then_success(self, mock_sleep: MagicMock) -> None:
+        """Retries on 503 and succeeds on second attempt."""
+        client = _no_wait_client()
+        err = _mock_response(503)
+        ok = _mock_response(200, {"ok": True})
+        client._http = MagicMock()
+        client._http.get.side_effect = [err, ok]
+
+        result = client._get_json("https://example.com/test", {})
+        assert result == {"ok": True}
+        assert client._http.get.call_count == 2
+        mock_sleep.assert_called_once_with(1)  # 2^0 = 1s
+
+    @patch("edinet_mcp.client.time.sleep")
+    def test_retry_on_429(self, mock_sleep: MagicMock) -> None:
+        """Retries on 429 (rate limited)."""
+        client = _no_wait_client()
+        err = _mock_response(429)
+        ok = _mock_response(200, {"data": 1})
+        client._http = MagicMock()
+        client._http.get.side_effect = [err, ok]
+
+        result = client._get_json("https://example.com/test", {})
+        assert result == {"data": 1}
+
+    @patch("edinet_mcp.client.time.sleep")
+    def test_retry_exhausted_raises(self, mock_sleep: MagicMock) -> None:
+        """Raises after all retries are exhausted."""
+        client = _no_wait_client()
+        client._max_retries = 2
+        err = _mock_response(503)
+        client._http = MagicMock()
+        client._http.get.return_value = err
+
+        with pytest.raises(httpx.HTTPError):
+            client._get_json("https://example.com/test", {})
+        # 1 initial + 2 retries = 3 total
+        assert client._http.get.call_count == 3
+        assert mock_sleep.call_count == 2
+
+    @patch("edinet_mcp.client.time.sleep")
+    def test_retry_on_timeout(self, mock_sleep: MagicMock) -> None:
+        """Retries on timeout exception."""
+        client = _no_wait_client()
+        ok = _mock_response(200, {"ok": True})
+        client._http = MagicMock()
+        client._http.get.side_effect = [
+            httpx.ReadTimeout("timed out"),
+            ok,
+        ]
+
+        result = client._get_json("https://example.com/test", {})
+        assert result == {"ok": True}
+
+    def test_no_retry_on_404(self) -> None:
+        """4xx errors (except 429) are NOT retried."""
+        client = _no_wait_client()
+        client._http = MagicMock()
+        client._http.get.side_effect = httpx.HTTPStatusError(
+            "404 Not Found",
+            request=httpx.Request("GET", "https://example.com/test"),
+            response=_mock_response(404),
+        )
+
+        with pytest.raises(httpx.HTTPError):
+            client._get_json("https://example.com/test", {})
+        assert client._http.get.call_count == 1  # No retry
+
+    @patch("edinet_mcp.client.time.sleep")
+    def test_exponential_backoff_timing(self, mock_sleep: MagicMock) -> None:
+        """Verifies backoff delays: 1s, 2s, 4s."""
+        client = _no_wait_client()
+        client._max_retries = 3
+        err = _mock_response(500)
+        client._http = MagicMock()
+        client._http.get.return_value = err
+
+        with pytest.raises(httpx.HTTPError):
+            client._get_json("https://example.com/test", {})
+
+        delays = [call.args[0] for call in mock_sleep.call_args_list]
+        assert delays == [1, 2, 4]
+
+    def test_retryable_status_codes(self) -> None:
+        """Verify the set of retryable status codes."""
+        assert {429, 500, 502, 503, 504} == _RETRYABLE_STATUS

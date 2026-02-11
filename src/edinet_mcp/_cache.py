@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import stat
+import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -31,12 +32,22 @@ class DiskCache:
         raw = json.dumps(params, sort_keys=True, default=str)
         return hashlib.sha256(f"{namespace}:{raw}".encode()).hexdigest()[:16]
 
-    def get_json(self, namespace: str, params: dict[str, Any]) -> Any | None:
-        """Retrieve a cached JSON response, or None if miss."""
+    def get_json(
+        self, namespace: str, params: dict[str, Any], *, max_age: float | None = None
+    ) -> Any | None:
+        """Retrieve a cached JSON response, or None if miss/expired.
+
+        Args:
+            namespace: Cache namespace.
+            params: Parameters that uniquely identify the entry.
+            max_age: Maximum age in seconds. ``None`` means no expiry.
+        """
         path = self._dir / namespace / f"{self._key(namespace, params)}.json"
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-        return None
+        if not path.exists():
+            return None
+        if max_age is not None and (time.time() - path.stat().st_mtime) > max_age:
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
 
     def put_json(self, namespace: str, params: dict[str, Any], data: Any) -> Path:
         """Store a JSON response in the cache. Returns the file path."""
@@ -46,10 +57,28 @@ class DiskCache:
         _write_restricted(path, json.dumps(data, ensure_ascii=False, default=str).encode("utf-8"))
         return path
 
-    def get_file(self, namespace: str, params: dict[str, Any], suffix: str = "") -> Path | None:
-        """Retrieve a cached binary file path, or None if miss."""
+    def get_file(
+        self,
+        namespace: str,
+        params: dict[str, Any],
+        suffix: str = "",
+        *,
+        max_age: float | None = None,
+    ) -> Path | None:
+        """Retrieve a cached binary file path, or None if miss/expired.
+
+        Args:
+            namespace: Cache namespace.
+            params: Parameters that uniquely identify the entry.
+            suffix: File extension (e.g. ``".zip"``).
+            max_age: Maximum age in seconds. ``None`` means no expiry.
+        """
         path = self._dir / namespace / f"{self._key(namespace, params)}{suffix}"
-        return path if path.exists() else None
+        if not path.exists():
+            return None
+        if max_age is not None and (time.time() - path.stat().st_mtime) > max_age:
+            return None
+        return path
 
     def put_file(
         self, namespace: str, params: dict[str, Any], data: bytes, suffix: str = ""

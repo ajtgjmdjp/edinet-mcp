@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     cache_dir: Path = Path.home() / ".cache" / "edinet-mcp"
     rate_limit_rps: float = 0.5  # requests per second (conservative default)
     request_timeout: float = 30.0
+    max_retries: int = 3  # retries on 429/5xx/timeout
 
     model_config = {"env_prefix": "", "env_file": ".env", "extra": "ignore"}
 

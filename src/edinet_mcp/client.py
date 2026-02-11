@@ -1,4 +1,4 @@
-"""High-level EDINET API v2 client.
+"""High-level async EDINET API v2 client.
 
 This is the primary public interface of edinet-mcp. All EDINET operations —
 company search, filing retrieval, financial statement parsing — flow through
@@ -6,22 +6,26 @@ company search, filing retrieval, financial statement parsing — flow through
 
 Example::
 
+    import asyncio
     from edinet_mcp import EdinetClient
 
-    client = EdinetClient()  # reads EDINET_API_KEY from env
-    companies = client.search_companies("トヨタ")
-    stmt = client.get_financial_statements("E02144", period="2024")
-    print(stmt.income_statement.to_polars())
+    async def main():
+        async with EdinetClient() as client:
+            companies = await client.search_companies("トヨタ")
+            stmt = await client.get_financial_statements("E02144", period="2024")
+            print(stmt.income_statement.to_polars())
+
+    asyncio.run(main())
 """
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import io
 import json
 import re
 import tempfile
-import time
 import zipfile
 from pathlib import Path
 from typing import Any, Literal
@@ -117,7 +121,7 @@ def _validate_period(period: str) -> None:
 
 
 class EdinetClient:
-    """Client for the EDINET API v2.
+    """Async client for the EDINET API v2.
 
     Provides methods to search filings, download documents, and parse
     XBRL financial statements into structured data.
@@ -152,21 +156,21 @@ class EdinetClient:
         cache_path = Path(cache_dir) if cache_dir else settings.cache_dir
         self._cache = DiskCache(cache_path)
 
-        self._http = httpx.Client(
+        self._http = httpx.AsyncClient(
             timeout=self._timeout,
             headers={"Accept": "application/json"},
         )
         self._parser = XBRLParser()
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the underlying HTTP client."""
-        self._http.close()
+        await self._http.aclose()
 
-    def __enter__(self) -> EdinetClient:
+    async def __aenter__(self) -> EdinetClient:
         return self
 
-    def __exit__(self, *args: object) -> None:
-        self.close()
+    async def __aexit__(self, *args: object) -> None:
+        await self.close()
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -179,16 +183,16 @@ class EdinetClient:
             params.update(extra)
         return params
 
-    def _request_with_retry(self, url: str, params: dict[str, Any]) -> httpx.Response:
+    async def _request_with_retry(self, url: str, params: dict[str, Any]) -> httpx.Response:
         """Perform a rate-limited GET with exponential-backoff retry.
 
         Retries on 429/5xx status codes and timeouts.
         """
         last_exc: BaseException | None = None
         for attempt in range(self._max_retries + 1):
-            self._limiter.wait()
+            await self._limiter.wait()
             try:
-                resp = self._http.get(url, params=params)
+                resp = await self._http.get(url, params=params)
                 if resp.status_code not in _RETRYABLE_STATUS:
                     resp.raise_for_status()
                     return resp
@@ -210,26 +214,26 @@ class EdinetClient:
                     f"Retry {attempt + 1}/{self._max_retries} for {url} "
                     f"after {type(last_exc).__name__} (wait {delay}s)"
                 )
-                time.sleep(delay)
+                await asyncio.sleep(delay)
 
         # All retries exhausted
         if isinstance(last_exc, httpx.HTTPError):
             raise _sanitize_http_error(last_exc, self._api_key) from None
         raise last_exc  # type: ignore[misc]
 
-    def _get_json(self, url: str, params: dict[str, Any]) -> Any:
+    async def _get_json(self, url: str, params: dict[str, Any]) -> Any:
         """Perform a rate-limited GET and return parsed JSON."""
-        return self._request_with_retry(url, params).json()
+        return (await self._request_with_retry(url, params)).json()
 
-    def _get_bytes(self, url: str, params: dict[str, Any]) -> bytes:
+    async def _get_bytes(self, url: str, params: dict[str, Any]) -> bytes:
         """Perform a rate-limited GET and return raw bytes."""
-        return self._request_with_retry(url, params).content
+        return (await self._request_with_retry(url, params)).content
 
     # ------------------------------------------------------------------
     # Filing list
     # ------------------------------------------------------------------
 
-    def get_filings(
+    async def get_filings(
         self,
         date: str | datetime.date | None = None,
         *,
@@ -286,7 +290,7 @@ class EdinetClient:
 
         results: list[Filing] = []
         for d in dates:
-            filings = self._fetch_filings_for_date(d)
+            filings = await self._fetch_filings_for_date(d)
             for f in filings:
                 if edinet_code and f.edinet_code != edinet_code:
                     continue
@@ -297,7 +301,7 @@ class EdinetClient:
         logger.info(f"Found {len(results)} filings across {len(dates)} date(s)")
         return results
 
-    def _fetch_filings_for_date(self, date: datetime.date) -> list[Filing]:
+    async def _fetch_filings_for_date(self, date: datetime.date) -> list[Filing]:
         """Fetch document list for a single date, with caching."""
         date_str = date.isoformat()
         cache_params = {"date": date_str, "type": _DOC_LIST_WITH_RESULTS}
@@ -309,7 +313,7 @@ class EdinetClient:
         url = f"{self._base_url}/documents.json"
         params = self._request_params({"date": date_str, "type": _DOC_LIST_WITH_RESULTS})
 
-        data = self._get_json(url, params)
+        data = await self._get_json(url, params)
         rows: list[dict[str, Any]] = data.get("results", [])
         self._cache.put_json("filings", cache_params, rows)
 
@@ -319,7 +323,7 @@ class EdinetClient:
     # Document download
     # ------------------------------------------------------------------
 
-    def download_document(
+    async def download_document(
         self,
         doc_id: str,
         *,
@@ -359,7 +363,7 @@ class EdinetClient:
 
         url = f"{self._base_url}/documents/{doc_id}"
         params = self._request_params({"type": retrieve_type})
-        data = self._get_bytes(url, params)
+        data = await self._get_bytes(url, params)
 
         if data[:2] != b"PK":
             # EDINET may return HTTP 200 with a JSON error body
@@ -384,7 +388,7 @@ class EdinetClient:
     # Financial statements
     # ------------------------------------------------------------------
 
-    def get_financial_statements(
+    async def get_financial_statements(
         self,
         edinet_code: str,
         *,
@@ -417,11 +421,11 @@ class EdinetClient:
 
         # Find the filing — use smart search for period queries
         if period:
-            filing = self._find_filing_for_period(edinet_code, int(period), doc_type)
+            filing = await self._find_filing_for_period(edinet_code, int(period), doc_type)
         else:
             end = datetime.date.today()
             start = end - datetime.timedelta(days=365)
-            filings = self.get_filings(
+            filings = await self.get_filings(
                 start_date=start,
                 end_date=end,
                 edinet_code=edinet_code,
@@ -434,10 +438,10 @@ class EdinetClient:
         logger.info(f"Using filing {filing.doc_id} ({filing.description})")
 
         # Download and parse
-        zip_path = self.download_document(filing.doc_id, format="xbrl")
+        zip_path = await self.download_document(filing.doc_id, format="xbrl")
         return self._parse_filing(filing, zip_path)
 
-    def _find_filing_for_period(
+    async def _find_filing_for_period(
         self,
         edinet_code: str,
         year: int,
@@ -461,7 +465,7 @@ class EdinetClient:
             if start > today:
                 continue
             end = min(end, today)
-            filings = self.get_filings(
+            filings = await self.get_filings(
                 start_date=start,
                 end_date=end,
                 edinet_code=edinet_code,
@@ -474,7 +478,7 @@ class EdinetClient:
         logger.debug(f"Priority months missed for {edinet_code}, scanning full year {year}")
         start = datetime.date(year, 1, 1)
         end = min(datetime.date(year, 12, 31), today)
-        filings = self.get_filings(
+        filings = await self.get_filings(
             start_date=start,
             end_date=end,
             edinet_code=edinet_code,
@@ -504,7 +508,7 @@ class EdinetClient:
     # Company search (using EDINET code list)
     # ------------------------------------------------------------------
 
-    def search_companies(self, query: str) -> list[Company]:
+    async def search_companies(self, query: str) -> list[Company]:
         """Search for companies by name (partial match).
 
         Uses the EDINET code list to perform a local, offline search.
@@ -516,7 +520,7 @@ class EdinetClient:
         Returns:
             Matching :class:`Company` objects.
         """
-        companies = self._get_company_list()
+        companies = await self._get_company_list()
         query_lower = query.lower()
         return [
             c
@@ -527,7 +531,7 @@ class EdinetClient:
             or query == c.edinet_code
         ]
 
-    def get_company(self, edinet_code: str) -> Company:
+    async def get_company(self, edinet_code: str) -> Company:
         """Look up a company by its exact EDINET code.
 
         Args:
@@ -540,12 +544,12 @@ class EdinetClient:
             ValueError: If the code format is invalid or not found.
         """
         _validate_edinet_code(edinet_code)
-        for c in self._get_company_list():
+        for c in await self._get_company_list():
             if c.edinet_code == edinet_code:
                 return c
         raise ValueError(f"EDINET code not found: {edinet_code}")
 
-    def _get_company_list(self) -> list[Company]:
+    async def _get_company_list(self) -> list[Company]:
         """Load the EDINET code list, downloading if necessary."""
         cached = self._cache.get_json("companies", {"version": "v2"}, max_age=_CACHE_TTL_COMPANIES)
         if cached is not None:
@@ -555,7 +559,7 @@ class EdinetClient:
         # The official list is available at the EDINET site
         url = "https://disclosure2dl.edinet-fsa.go.jp/searchdocument/codelist/Edinetcode.zip"
         logger.info("Downloading EDINET code list...")
-        data = self._get_bytes(url, {})
+        data = await self._get_bytes(url, {})
 
         companies = self._parse_code_list_zip(data)
         self._cache.put_json(

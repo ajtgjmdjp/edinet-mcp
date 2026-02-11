@@ -2,12 +2,16 @@
 
 Quick start::
 
+    import asyncio
     from edinet_mcp import EdinetClient
 
-    client = EdinetClient()
-    companies = client.search_companies("トヨタ")
-    stmt = client.get_financial_statements("E02144", period="2024")
-    print(stmt.income_statement.to_polars())
+    async def main():
+        async with EdinetClient() as client:
+            companies = await client.search_companies("トヨタ")
+            stmt = await client.get_financial_statements("E02144", period="2024")
+            print(stmt.income_statement.to_polars())
+
+    asyncio.run(main())
 """
 
 from edinet_mcp._metrics import (
@@ -67,4 +71,4 @@ __all__ = [
     "validate_financial_statement",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

@@ -38,40 +38,47 @@ export EDINET_API_KEY=your_key_here
 ### 30-Second Example
 
 ```python
+import asyncio
 from edinet_mcp import EdinetClient
 
-client = EdinetClient()
+async def main():
+    async with EdinetClient() as client:
+        # Search for Toyota
+        companies = await client.search_companies("トヨタ")
+        print(companies[0].name, companies[0].edinet_code)
+        # トヨタ自動車株式会社 E02144
 
-# Search for Toyota
-companies = client.search_companies("トヨタ")
-print(companies[0].name, companies[0].edinet_code)
-# トヨタ自動車株式会社 E02144
+        # Get normalized financial statements
+        stmt = await client.get_financial_statements("E02144", period="2025")
 
-# Get normalized financial statements
-stmt = client.get_financial_statements("E02144", period="2025")
+        # Dict-like access — works for J-GAAP, IFRS, and US-GAAP
+        revenue = stmt.income_statement["売上高"]
+        print(revenue)  # {"当期": 45095325000000, "前期": 37154298000000}
 
-# Dict-like access — works for J-GAAP, IFRS, and US-GAAP
-revenue = stmt.income_statement["売上高"]
-print(revenue)  # {"当期": 45095325000000, "前期": 37154298000000}
+        # See all available line items
+        print(stmt.income_statement.labels)
+        # ["売上高", "売上原価", "売上総利益", "営業利益", ...]
 
-# See all available line items
-print(stmt.income_statement.labels)
-# ["売上高", "売上原価", "売上総利益", "営業利益", ...]
+        # Export as DataFrame
+        print(stmt.income_statement.to_polars())
 
-# Export as DataFrame
-print(stmt.income_statement.to_polars())
+asyncio.run(main())
 ```
 
 ### Financial Metrics
 
 ```python
+import asyncio
 from edinet_mcp import EdinetClient, calculate_metrics
 
-client = EdinetClient()
-stmt = client.get_financial_statements("E02144", period="2025")
-metrics = calculate_metrics(stmt)
-print(metrics["profitability"])
-# {"売上総利益率": "25.30%", "営業利益率": "11.87%", "ROE": "12.50%", ...}
+async def main():
+    async with EdinetClient() as client:
+        stmt = await client.get_financial_statements("E02144", period="2025")
+        metrics = calculate_metrics(stmt)
+        print(metrics["profitability"])
+        # {"売上総利益率": "25.30%", "営業利益率": "11.87%", "ROE": "12.50%", ...}
+
+asyncio.run(main())
 ```
 
 ## MCP Server (for Claude Desktop)
@@ -125,26 +132,50 @@ edinet-mcp serve
 
 ### `EdinetClient`
 
+All client methods are async. Use `async with` for proper resource cleanup:
+
 ```python
-client = EdinetClient(
-    api_key="...",        # or EDINET_API_KEY env var
-    cache_dir="~/.cache/edinet-mcp",
-    rate_limit=0.5,       # requests per second
-    max_retries=3,        # retry on 429/5xx with exponential backoff
-)
+import asyncio
+from edinet_mcp import EdinetClient
 
-# Search
-companies: list[Company] = client.search_companies("query")
-company: Company = client.get_company("E02144")
+async def main():
+    async with EdinetClient(
+        api_key="...",        # or EDINET_API_KEY env var
+        cache_dir="~/.cache/edinet-mcp",
+        rate_limit=0.5,       # requests per second
+        max_retries=3,        # retry on 429/5xx with exponential backoff
+    ) as client:
+        # Search
+        companies: list[Company] = await client.search_companies("query")
+        company: Company = await client.get_company("E02144")
 
-# Filings
-filings: list[Filing] = client.get_filings(
-    start_date="2024-01-01",
-    edinet_code="E02144",
-    doc_type="annual_report",
-)
+        # Filings
+        filings: list[Filing] = await client.get_filings(
+            start_date="2024-01-01",
+            edinet_code="E02144",
+            doc_type="annual_report",
+        )
 
-# Access Filing attributes
+        # Financial statements (by edinet_code + period)
+        stmt: FinancialStatement = await client.get_financial_statements(
+            edinet_code="E02144",
+            period="2024",  # Filing year (not fiscal year)
+        )
+
+        # Or get the most recent filing (within past 365 days)
+        stmt = await client.get_financial_statements(edinet_code="E02144")
+
+        df = stmt.income_statement.to_polars()  # Polars DataFrame
+        df = stmt.income_statement.to_pandas()  # pandas DataFrame (optional dep)
+
+asyncio.run(main())
+```
+
+### `Filing`
+
+Filing objects returned by `get_filings()` have the following attributes:
+
+```python
 for filing in filings:
     print(filing.description)    # "有価証券報告書－第121期(...)"
     print(filing.filing_date)    # datetime.date(2025, 6, 18)
@@ -152,18 +183,6 @@ for filing in filings:
     print(filing.company_name)   # "トヨタ自動車株式会社"
     print(filing.period_start)   # datetime.date(2024, 4, 1)
     print(filing.period_end)     # datetime.date(2025, 3, 31)
-
-# Financial statements (by edinet_code + period)
-stmt: FinancialStatement = client.get_financial_statements(
-    edinet_code="E02144",
-    period="2024",  # Filing year (not fiscal year)
-)
-
-# Or get the most recent filing (within past 365 days)
-stmt = client.get_financial_statements(edinet_code="E02144")
-
-df = stmt.income_statement.to_polars()  # Polars DataFrame
-df = stmt.income_statement.to_pandas()  # pandas DataFrame (optional dep)
 ```
 
 ### `StatementData`
@@ -184,24 +203,6 @@ len(stmt.balance_sheet)           # number of line items
 
 # Raw XBRL data preserved
 stmt.income_statement.raw_items   # original pre-normalization data
-```
-
-### `Filing`
-
-Filing objects returned by `get_filings()` have the following attributes:
-
-```python
-filing.doc_id          # str: Document ID (e.g., "S100VWVY")
-filing.edinet_code     # str: Company EDINET code (e.g., "E02144")
-filing.company_name    # str: Company name
-filing.description     # str: Document description (e.g., "有価証券報告書－第121期(...)")
-filing.filing_date     # datetime.date: Submission date
-filing.period_start    # datetime.date | None: Reporting period start
-filing.period_end      # datetime.date | None: Reporting period end
-filing.doc_type        # DocType: Document type enum
-filing.has_xbrl        # bool: XBRL data available
-filing.has_pdf         # bool: PDF available
-filing.has_csv         # bool: CSV available
 ```
 
 ### Normalization

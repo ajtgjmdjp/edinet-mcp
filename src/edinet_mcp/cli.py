@@ -8,6 +8,7 @@ Provides three commands:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 
@@ -41,8 +42,11 @@ def search(query: str, limit: int, as_json: bool) -> None:
     """
     from edinet_mcp.client import EdinetClient
 
-    client = EdinetClient()
-    companies = client.search_companies(query)[:limit]
+    async def _run() -> list:
+        async with EdinetClient() as client:
+            return await client.search_companies(query)
+
+    companies = asyncio.run(_run())[:limit]
 
     if as_json:
         click.echo(json.dumps([c.model_dump() for c in companies], ensure_ascii=False, indent=2))
@@ -93,13 +97,16 @@ def statements(
     """
     from edinet_mcp.client import EdinetClient
 
-    client = EdinetClient()
+    async def _run():  # type: ignore[no-untyped-def]
+        async with EdinetClient() as client:
+            return await client.get_financial_statements(
+                edinet_code=edinet_code,
+                doc_type=doc_type,
+                period=period,
+            )
+
     try:
-        stmt = client.get_financial_statements(
-            edinet_code=edinet_code,
-            doc_type=doc_type,
-            period=period,
-        )
+        stmt = asyncio.run(_run())
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

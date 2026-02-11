@@ -15,8 +15,11 @@ income_statement:
     label_en: Revenue
     elements:
       - NetSales              # J-GAAP
-      - Revenue               # IFRS
+      - Revenue               # IFRS (generic)
       - Revenues              # US-GAAP variant
+      - SalesRevenues         # IFRS (EDINET consolidated)
+      - TotalNetRevenues      # IFRS (EDINET total)
+      - OperatingRevenues     # IFRS (EDINET key financial data)
 
   - id: cost_of_sales
     label: 売上原価
@@ -86,6 +89,7 @@ income_statement:
     elements:
       - OperatingIncome        # J-GAAP
       - OperatingProfit        # IFRS
+      - OperatingProfitLoss    # IFRS (EDINET consolidated)
 
   - id: non_operating_income
     label: 営業外収益
@@ -159,12 +163,14 @@ income_statement:
     elements:
       - IncomeBeforeIncomeTaxes  # J-GAAP
       - ProfitBeforeTax          # IFRS
+      - ProfitLossBeforeTax      # IFRS (EDINET consolidated)
 
   - id: income_taxes
     label: 法人税等
     label_en: Income Taxes
     elements:
       - IncomeTaxes
+      - IncomeTaxExpense       # IFRS (EDINET consolidated)
 
   - id: net_income
     label: 当期純利益
@@ -197,6 +203,7 @@ income_statement:
     label_en: Depreciation
     elements:
       - DepreciationAndAmortization
+      - DepreciationAndAmortizationOperatingExpenses  # IFRS (within operating expenses)
 
   - id: amortization_of_goodwill
     label: のれん償却額
@@ -380,6 +387,7 @@ balance_sheet:
     label_en: Non-current Assets
     elements:
       - NoncurrentAssets
+      - NonCurrentAssets          # IFRS casing variant
 
   - id: ppe
     label: 有形固定資産
@@ -543,6 +551,7 @@ balance_sheet:
     label_en: Total Assets
     elements:
       - TotalAssets
+      - Assets                    # IFRS (plain "Assets" = total)
 
   # --- Liabilities ---
   - id: current_liabilities
@@ -633,6 +642,7 @@ balance_sheet:
     label_en: Non-current Liabilities
     elements:
       - NoncurrentLiabilities
+      - NonCurrentLiabilities     # IFRS casing variant
 
   - id: long_term_loans
     label: 長期借入金
@@ -690,6 +700,7 @@ balance_sheet:
     label_en: Total Liabilities
     elements:
       - TotalLiabilities
+      - Liabilities               # IFRS (plain "Liabilities" = total)
 
   # --- Equity ---
   - id: shareholders_equity
@@ -780,37 +791,46 @@ balance_sheet:
     elements:
       - NetAssets               # J-GAAP
       - TotalEquity             # IFRS
+      - Equity                  # IFRS (plain "Equity" = total equity)
 
   - id: total_liabilities_and_net_assets
     label: 負債純資産合計
     label_en: Total Liabilities & Net Assets
     elements:
       - TotalLiabilitiesAndNetAssets
+      - LiabilitiesAndEquity      # IFRS
 
 cash_flow:
   - id: operating_cf
     label: 営業活動によるキャッシュ・フロー
     label_en: Operating Cash Flow
     elements:
-      - CashFlowsFromOperatingActivities
+      - CashFlowsFromOperatingActivities           # J-GAAP
+      - CashFlowsFromUsedInOperatingActivities      # IFRS (EDINET)
+      - NetCashProvidedByUsedInOperatingActivities   # IFRS (detailed CF)
 
   - id: investing_cf
     label: 投資活動によるキャッシュ・フロー
     label_en: Investing Cash Flow
     elements:
-      - CashFlowsFromInvestingActivities
+      - CashFlowsFromInvestingActivities            # J-GAAP
+      - CashFlowsFromUsedInInvestingActivities       # IFRS (EDINET)
+      - NetCashProvidedByUsedInInvestingActivities    # IFRS (detailed CF)
 
   - id: financing_cf
     label: 財務活動によるキャッシュ・フロー
     label_en: Financing Cash Flow
     elements:
-      - CashFlowsFromFinancingActivities
+      - CashFlowsFromFinancingActivities            # J-GAAP
+      - CashFlowsFromUsedInFinancingActivities       # IFRS (EDINET)
+      - NetCashProvidedByUsedInFinancingActivities    # IFRS (detailed CF)
 
   - id: fx_effect
     label: 現金及び現金同等物に係る換算差額
     label_en: FX Effect on Cash
     elements:
-      - EffectOfExchangeRateChangeOnCashAndCashEquivalents
+      - EffectOfExchangeRateChangeOnCashAndCashEquivalents    # J-GAAP (singular)
+      - EffectOfExchangeRateChangesOnCashAndCashEquivalents   # IFRS (plural)
 
   - id: net_change_in_cash
     label: 現金及び現金同等物の増減額
@@ -829,6 +849,7 @@ cash_flow:
     label_en: Cash at End
     elements:
       - CashAndCashEquivalentsAtEndOfPeriod
+      - CashAndCashEquivalents    # IFRS (also used as ending balance)
 
   # Operating CF details
   - id: depreciation_cf

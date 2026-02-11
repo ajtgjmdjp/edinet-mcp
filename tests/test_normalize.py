@@ -10,6 +10,7 @@ from edinet_mcp._normalize import (
     _extract_value,
     _load_taxonomy,
     _normalize_items,
+    _strip_edinet_suffixes,
     get_taxonomy_labels,
     normalize_statement,
 )
@@ -48,6 +49,47 @@ class TestLoadTaxonomy:
 # ---------------------------------------------------------------------------
 
 
+class TestStripEdinetSuffixes:
+    def test_no_suffix(self) -> None:
+        assert _strip_edinet_suffixes("TotalAssets") == "TotalAssets"
+
+    def test_ifrs_suffix(self) -> None:
+        assert _strip_edinet_suffixes("CurrentAssetsIFRS") == "CurrentAssets"
+
+    def test_summary_suffix(self) -> None:
+        assert _strip_edinet_suffixes("NetSalesSummaryOfBusinessResults") == "NetSales"
+
+    def test_ifrs_summary_suffix(self) -> None:
+        result = _strip_edinet_suffixes("TotalAssetsIFRSSummaryOfBusinessResults")
+        assert result == "TotalAssets"
+
+    def test_key_financial_data_suffix(self) -> None:
+        result = _strip_edinet_suffixes("OperatingRevenuesIFRSKeyFinancialData")
+        assert result == "OperatingRevenues"
+
+    def test_position_tag_ca(self) -> None:
+        assert _strip_edinet_suffixes("OtherCurrentAssetsCAIFRS") == "OtherCurrentAssets"
+
+    def test_position_tag_ncl(self) -> None:
+        result = _strip_edinet_suffixes("RetirementBenefitLiabilityNCLIFRS")
+        assert result == "RetirementBenefitLiability"
+
+    def test_position_tag_nca(self) -> None:
+        result = _strip_edinet_suffixes("OtherFinancialAssetsNCAIFRS")
+        assert result == "OtherFinancialAssets"
+
+    def test_opecf_not_stripped(self) -> None:
+        """OpeCF is part of canonical taxonomy names — should NOT be stripped."""
+        result = _strip_edinet_suffixes("DepreciationAndAmortizationOpeCFIFRS")
+        assert result == "DepreciationAndAmortizationOpeCF"
+
+    def test_jgaap_suffix(self) -> None:
+        assert _strip_edinet_suffixes("NetSalesJGAAP") == "NetSales"
+
+    def test_usgaap_suffix(self) -> None:
+        assert _strip_edinet_suffixes("RevenueUSGAAP") == "Revenue"
+
+
 class TestExtractElement:
     def test_from_element_key(self) -> None:
         assert _extract_element({"element": "Revenue"}) == "Revenue"
@@ -60,6 +102,15 @@ class TestExtractElement:
 
     def test_none_when_missing(self) -> None:
         assert _extract_element({"other": "value"}) is None
+
+    def test_strips_edinet_suffixes(self) -> None:
+        """Element extraction also strips EDINET suffixes."""
+        item = {"element": "TotalAssetsIFRSSummaryOfBusinessResults"}
+        assert _extract_element(item) == "TotalAssets"
+
+    def test_strips_namespace_and_suffix(self) -> None:
+        item = {"要素ID": "jpcrp_cor:SalesRevenuesIFRS"}
+        assert _extract_element(item) == "SalesRevenues"
 
 
 class TestExtractValue:
@@ -96,6 +147,20 @@ class TestExtractPeriod:
 
     def test_default_is_current(self) -> None:
         assert _extract_period({}) == "当期"
+
+    def test_non_consolidated_returns_none(self) -> None:
+        """Non-consolidated contexts should be skipped."""
+        item = {"context": "CurrentYearInstant_NonConsolidatedMember"}
+        assert _extract_period(item) is None
+
+    def test_non_consolidated_prior_returns_none(self) -> None:
+        item = {"context": "Prior1YearDuration_NonConsolidatedMember"}
+        assert _extract_period(item) is None
+
+    def test_consolidated_context_works(self) -> None:
+        """Plain context (consolidated) should work normally."""
+        assert _extract_period({"context": "CurrentYearInstant"}) == "当期"
+        assert _extract_period({"context": "Prior1YearDuration"}) == "前期"
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +250,67 @@ class TestNormalizeItems:
         ]
         result = _normalize_items(raw, "cash_flow", taxonomy)
         assert result[0]["科目"] == "営業活動によるキャッシュ・フロー"
+
+    def test_ifrs_suffix_stripping_in_normalization(self) -> None:
+        """IFRS suffixes should be stripped before matching taxonomy."""
+        taxonomy = _load_taxonomy()
+        raw = [
+            {
+                "element": "TotalAssetsIFRSSummaryOfBusinessResults",
+                "value": 90000000,
+                "context": "CurrentYearInstant",
+            },
+            {
+                "element": "TotalAssetsIFRSSummaryOfBusinessResults",
+                "value": 80000000,
+                "context": "Prior1YearInstant",
+            },
+        ]
+        result = _normalize_items(raw, "balance_sheet", taxonomy)
+        assert len(result) >= 1
+        assert result[0]["科目"] == "資産合計"
+        assert result[0]["当期"] == 90000000
+        assert result[0]["前期"] == 80000000
+
+    def test_ifrs_cf_normalization(self) -> None:
+        """IFRS CF elements should be normalized after suffix stripping."""
+        taxonomy = _load_taxonomy()
+        raw = [
+            {
+                "element": "CashFlowsFromUsedInOperatingActivitiesIFRSSummaryOfBusinessResults",
+                "value": 4000000,
+                "context": "CurrentYearDuration",
+            },
+            {
+                "element": "NetCashProvidedByUsedInInvestingActivitiesIFRS",
+                "value": -2000000,
+                "context": "CurrentYearDuration",
+            },
+        ]
+        result = _normalize_items(raw, "cash_flow", taxonomy)
+        labels = [r["科目"] for r in result]
+        assert "営業活動によるキャッシュ・フロー" in labels
+        assert "投資活動によるキャッシュ・フロー" in labels
+
+    def test_non_consolidated_filtered_out(self) -> None:
+        """Non-consolidated data should be skipped, keeping consolidated."""
+        taxonomy = _load_taxonomy()
+        raw = [
+            {
+                "element": "TotalAssets",
+                "value": 90000000,
+                "context": "CurrentYearInstant",
+            },
+            {
+                "element": "TotalAssets",
+                "value": 30000000,
+                "context": "CurrentYearInstant_NonConsolidatedMember",
+            },
+        ]
+        result = _normalize_items(raw, "balance_sheet", taxonomy)
+        # Only consolidated value should be kept
+        total_assets = next(r for r in result if r["科目"] == "資産合計")
+        assert total_assets["当期"] == 90000000
 
 
 class TestNormalizeStatement:

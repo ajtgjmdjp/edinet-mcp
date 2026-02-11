@@ -586,15 +586,22 @@ class EdinetClient:
                     return companies
 
                 for row in reader:
-                    if len(row) < 6:
+                    if len(row) < 7:
                         continue
                     edinet_code = row[0].strip()
                     if not edinet_code.startswith("E"):
                         continue
 
+                    # EDINET CSV columns:
+                    #  [0] EDINETコード  [1] 提出者種別  [2] 上場区分
+                    #  [5] 決算日  [6] 提出者名  [7] 提出者名(英字)
+                    #  [10] 提出者業種  [11] 証券コード  [12] 法人番号
                     name_en = row[7].strip() if len(row) > 7 else ""
-                    ticker = row[5].strip() if len(row) > 5 else ""
+                    # SEC code is 5 digits (e.g. "72030"); ticker is first 4
+                    sec_code = row[11].strip() if len(row) > 11 else ""
+                    ticker = sec_code[:4] if sec_code else ""
                     industry = row[10].strip() if len(row) > 10 else ""
+                    is_listed = row[2].strip() == "上場" if len(row) > 2 else False
                     companies.append(
                         Company(
                             edinet_code=edinet_code,
@@ -602,7 +609,7 @@ class EdinetClient:
                             name_en=name_en or None,
                             ticker=ticker or None,
                             industry=industry or None,
-                            is_listed=bool(ticker),
+                            is_listed=is_listed,
                         )
                     )
         return companies

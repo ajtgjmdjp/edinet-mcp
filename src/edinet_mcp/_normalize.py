@@ -52,6 +52,61 @@ def _build_element_map(
 
 
 # ---------------------------------------------------------------------------
+# EDINET suffix stripping
+# ---------------------------------------------------------------------------
+
+# EDINET appends accounting-standard and section suffixes to XBRL element
+# names.  For example ``TotalAssetsIFRSSummaryOfBusinessResults`` is really
+# just ``TotalAssets``.  We strip these suffixes so that the element name
+# can match the canonical taxonomy entries.
+
+_EDINET_SUFFIXES = (
+    "IFRSSummaryOfBusinessResults",
+    "JGAAPSummaryOfBusinessResults",
+    "USGAAPSummaryOfBusinessResults",
+    "SummaryOfBusinessResults",
+    "IFRSKeyFinancialData",
+    "KeyFinancialData",
+    "IFRS",
+    "JGAAP",
+    "USGAAP",
+)
+
+# Section position tags that EDINET appends *after* the standard suffix.
+# CA = Current Assets, CL = Current Liabilities, NCA = Non-Current Assets,
+# NCL = Non-Current Liabilities, SS = Shareholders' Equity.
+# Note: OpeCF / InvCF / FinCF are intentionally excluded because they
+# are already part of canonical taxonomy element names.
+_EDINET_POSITION_TAGS = ("NCA", "NCL", "CA", "CL", "SS")
+
+
+def _strip_edinet_suffixes(name: str) -> str:
+    """Strip EDINET-specific suffixes from an XBRL element name.
+
+    Examples:
+        >>> _strip_edinet_suffixes("TotalAssetsIFRSSummaryOfBusinessResults")
+        'TotalAssets'
+        >>> _strip_edinet_suffixes("OtherCurrentAssetsCAIFRS")
+        'OtherCurrentAssets'
+        >>> _strip_edinet_suffixes("DepreciationAndAmortizationOpeCFIFRS")
+        'DepreciationAndAmortizationOpeCF'
+    """
+    # 1. Strip standard/summary suffix
+    for suffix in _EDINET_SUFFIXES:
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+
+    # 2. Strip position tag (only if something remains)
+    for tag in _EDINET_POSITION_TAGS:
+        if name.endswith(tag) and len(name) > len(tag):
+            name = name[: -len(tag)]
+            break
+
+    return name
+
+
+# ---------------------------------------------------------------------------
 # Raw item field extraction
 # ---------------------------------------------------------------------------
 
@@ -62,13 +117,17 @@ def _extract_element(item: dict[str, Any]) -> str | None:
     Handles multiple column name formats:
     - XBRL path: ``{"element": "Revenue", ...}``
     - EDINET TSV: ``{"要素ID": "jppfs_cor:NetSales", ...}``
+
+    EDINET-specific suffixes (IFRS, SummaryOfBusinessResults, etc.)
+    are stripped to allow matching against canonical taxonomy entries.
     """
     for key in ("element", "要素ID", "ElementId"):
         val = item.get(key)
         if val:
             s = str(val)
             # Strip namespace prefix: "jppfs_cor:NetSales" -> "NetSales"
-            return s.rsplit(":", 1)[-1] if ":" in s else s
+            s = s.rsplit(":", 1)[-1] if ":" in s else s
+            return _strip_edinet_suffixes(s)
     return None
 
 
@@ -91,11 +150,14 @@ def _extract_value(item: dict[str, Any]) -> int | float | None:
     return None
 
 
-def _extract_period(item: dict[str, Any]) -> PeriodLabel:
+def _extract_period(item: dict[str, Any]) -> PeriodLabel | None:
     """Determine the period label (当期 or 前期).
 
     Checks EDINET TSV's ``相対年度`` column first, then falls back
     to inspecting the XBRL context reference for Prior/Previous keywords.
+
+    Returns ``None`` for non-consolidated (単体) contexts so that
+    consolidated data is preferred by default.
     """
     # EDINET TSV format
     period = str(item.get("相対年度", ""))
@@ -104,6 +166,13 @@ def _extract_period(item: dict[str, Any]) -> PeriodLabel:
 
     # XBRL context-based detection
     ctx = str(item.get("context", item.get("コンテキストID", "")))
+
+    # Skip non-consolidated (単体) data — consolidated figures should
+    # be used for companies that report both.  Companies without
+    # subsidiaries use plain context IDs without this member.
+    if "NonConsolidatedMember" in ctx:
+        return None
+
     if "Prior" in ctx or "Previous" in ctx or "LastYear" in ctx:
         return "前期"
     return "当期"
@@ -148,7 +217,7 @@ def _normalize_items(
         val = _extract_value(item)
         period = _extract_period(item)
 
-        if val is not None:
+        if val is not None and period is not None:
             values.setdefault(cid, {})[period] = val
 
     # Build output in taxonomy display order

@@ -62,22 +62,16 @@ class TestStatementsCommand:
             accounting_standard=AccountingStandard.IFRS,
         )
 
-    def test_statements_table(
-        self, mock_client_cls, sample_filing, sample_statement_data
-    ):
+    def test_statements_table(self, mock_client_cls, sample_filing, sample_statement_data):
         stmt = self._make_stmt(sample_filing, sample_statement_data)
         mock_client_cls.return_value.get_financial_statements.return_value = stmt
         runner = CliRunner()
-        result = runner.invoke(
-            cli, ["statements", "-c", "E02144", "-s", "income_statement"]
-        )
+        result = runner.invoke(cli, ["statements", "-c", "E02144", "-s", "income_statement"])
         assert result.exit_code == 0
         assert "Filing:" in result.output
         assert "IFRS" in result.output
 
-    def test_statements_json(
-        self, mock_client_cls, sample_filing, sample_statement_data
-    ):
+    def test_statements_json(self, mock_client_cls, sample_filing, sample_statement_data):
         stmt = self._make_stmt(sample_filing, sample_statement_data)
         mock_client_cls.return_value.get_financial_statements.return_value = stmt
         runner = CliRunner()
@@ -89,9 +83,7 @@ class TestStatementsCommand:
         data = json.loads(result.output.split("\n\n", 1)[1])
         assert isinstance(data, list)
 
-    def test_statements_csv(
-        self, mock_client_cls, sample_filing, sample_statement_data
-    ):
+    def test_statements_csv(self, mock_client_cls, sample_filing, sample_statement_data):
         stmt = self._make_stmt(sample_filing, sample_statement_data)
         mock_client_cls.return_value.get_financial_statements.return_value = stmt
         runner = CliRunner()
@@ -102,15 +94,11 @@ class TestStatementsCommand:
         assert result.exit_code == 0
         assert "element" in result.output  # CSV header
 
-    def test_statements_not_found(
-        self, mock_client_cls, sample_filing, sample_statement_data
-    ):
+    def test_statements_not_found(self, mock_client_cls, sample_filing, sample_statement_data):
         stmt = self._make_stmt(sample_filing, sample_statement_data)
         mock_client_cls.return_value.get_financial_statements.return_value = stmt
         runner = CliRunner()
-        result = runner.invoke(
-            cli, ["statements", "-c", "E02144", "-s", "balance_sheet"]
-        )
+        result = runner.invoke(cli, ["statements", "-c", "E02144", "-s", "balance_sheet"])
         assert result.exit_code != 0
         assert "No balance_sheet data found" in result.output
 

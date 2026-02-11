@@ -9,10 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
-    from edinet_mcp.models import FinancialStatement
-
-from edinet_mcp.models import PeriodLabel
-
+    from edinet_mcp.models import FinancialStatement, PeriodLabel
 
 # ---------------------------------------------------------------------------
 # Type definitions for metric outputs
@@ -260,7 +257,11 @@ def calculate_metrics(stmt: FinancialStatement) -> FinancialMetrics:
     if revenue is not None and revenue_prev is not None and revenue_prev != 0:
         growth_rate = (revenue - revenue_prev) / revenue_prev
         growth["売上高成長率"] = _pct(growth_rate) or ""
-    if operating_income is not None and operating_income_prev is not None and operating_income_prev != 0:
+    if (
+        operating_income is not None
+        and operating_income_prev is not None
+        and operating_income_prev != 0
+    ):
         growth_rate = (operating_income - operating_income_prev) / operating_income_prev
         growth["営業利益成長率"] = _pct(growth_rate) or ""
     if total_assets is not None and total_assets_prev is not None and total_assets_prev != 0:

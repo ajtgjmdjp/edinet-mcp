@@ -15,7 +15,13 @@ from edinet_mcp._validation import (
     _check_income_statement_consistency,
     validate_financial_statement,
 )
-from edinet_mcp.models import AccountingStandard, DocType, Filing, FinancialStatement, StatementData
+from edinet_mcp.models import (
+    AccountingStandard,
+    DocType,
+    Filing,
+    FinancialStatement,
+    StatementData,
+)
 
 
 def _make_statement(

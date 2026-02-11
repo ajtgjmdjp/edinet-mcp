@@ -130,6 +130,7 @@ client = EdinetClient(
     api_key="...",        # or EDINET_API_KEY env var
     cache_dir="~/.cache/edinet-mcp",
     rate_limit=0.5,       # requests per second
+    max_retries=3,        # retry on 429/5xx with exponential backoff
 )
 
 # Search
@@ -210,10 +211,10 @@ edinet-mcp automatically normalizes XBRL element names across accounting standar
 | Accounting Standard | XBRL Element | Normalized Label |
 |---|---|---|
 | J-GAAP | `NetSales` | 売上高 |
-| IFRS | `Revenue` | 売上高 |
+| IFRS | `Revenue`, `SalesRevenuesIFRS` | 売上高 |
 | US-GAAP | `Revenues` | 売上高 |
 
-Mappings are defined in [`taxonomy.yaml`](src/edinet_mcp/data/taxonomy.yaml) — 140 items covering PL (35), BS (72), and CF (33). Add new mappings by editing the YAML file, no code changes needed.
+Mappings are defined in [`taxonomy.yaml`](src/edinet_mcp/data/taxonomy.yaml) — 161 items covering PL (42), BS (79), and CF (40), with IFRS/US-GAAP element variants automatically resolved via suffix stripping. Add new mappings by editing the YAML file, no code changes needed.
 
 ```python
 from edinet_mcp import get_taxonomy_labels
@@ -222,6 +223,10 @@ from edinet_mcp import get_taxonomy_labels
 labels = get_taxonomy_labels("income_statement")
 # [{"id": "revenue", "label": "売上高", "label_en": "Revenue"}, ...]
 ```
+
+### EDINET Suffix Stripping
+
+EDINET appends accounting-standard and section-specific suffixes to XBRL element names (e.g., `TotalAssetsIFRSSummaryOfBusinessResults`). These are automatically stripped to match canonical taxonomy entries. Non-consolidated (単体) contexts are filtered out to prefer consolidated figures.
 
 ## Architecture
 
@@ -239,7 +244,7 @@ EDINET API → Parser (XBRL/TSV) → Normalizer (taxonomy.yaml) → MCP Server
 git clone https://github.com/ajtgjmdjp/edinet-mcp
 cd edinet-mcp
 uv sync --extra dev
-uv run pytest -v           # 85 tests
+uv run pytest -v           # 179 tests
 uv run ruff check src/
 ```
 

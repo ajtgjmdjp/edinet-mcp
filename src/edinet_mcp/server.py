@@ -18,7 +18,12 @@ Usage with Claude Desktop (add to ``claude_desktop_config.json``)::
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+import asyncio
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, Annotated, Any
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 from fastmcp import FastMCP
 from pydantic import Field
@@ -27,8 +32,37 @@ from edinet_mcp._metrics import calculate_metrics, compare_periods
 from edinet_mcp._normalize import get_taxonomy_labels
 from edinet_mcp.client import EdinetClient
 
+# Lazily initialized client with lock for concurrent-safe access
+_client: EdinetClient | None = None
+_client_lock = asyncio.Lock()
+
+
+async def _get_client() -> EdinetClient:
+    """Return the shared EdinetClient, creating it on first call.
+
+    Uses double-checked locking to avoid race conditions when
+    multiple MCP tool calls arrive concurrently.
+    """
+    global _client
+    if _client is not None:
+        return _client
+    async with _client_lock:
+        if _client is None:
+            _client = EdinetClient()
+    return _client
+
+
+@asynccontextmanager
+async def _lifespan(server: FastMCP[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+    """Manage EdinetClient lifecycle — close httpx.AsyncClient on shutdown."""
+    yield {}
+    if _client is not None:
+        await _client.close()
+
+
 mcp = FastMCP(
     name="EDINET",
+    lifespan=_lifespan,
     instructions=(
         "EDINET MCP server provides tools for accessing Japanese financial "
         "disclosure data. You can search for companies listed on the Tokyo "
@@ -48,16 +82,6 @@ mcp = FastMCP(
     ),
 )
 
-# Lazily initialized client
-_client: EdinetClient | None = None
-
-
-def _get_client() -> EdinetClient:
-    global _client
-    if _client is None:
-        _client = EdinetClient()
-    return _client
-
 
 @mcp.tool()
 async def search_companies(
@@ -73,7 +97,7 @@ async def search_companies(
     - search_companies("7203") → Toyota (by ticker)
     - search_companies("E02144") → Toyota (by EDINET code)
     """
-    client = _get_client()
+    client = await _get_client()
     companies = await client.search_companies(query)
     return [c.model_dump() for c in companies[:20]]
 
@@ -107,7 +131,7 @@ async def get_filings(
     Returns filing metadata including doc_id, filing date, and document type.
     Use the doc_id with get_financial_statements to retrieve actual data.
     """
-    client = _get_client()
+    client = await _get_client()
     filings = await client.get_filings(
         start_date=start_date,
         end_date=end_date,
@@ -146,7 +170,7 @@ async def get_financial_statements(
     Example response:
       income_statement: [{"科目": "売上高", "当期": 45095325, "前期": 37154298}, ...]
     """
-    client = _get_client()
+    client = await _get_client()
     stmt = await client.get_financial_statements(
         edinet_code=edinet_code,
         doc_type=doc_type,
@@ -193,7 +217,7 @@ async def get_financial_metrics(
       "cash_flow": {"営業CF": 5000000, "フリーCF": 3000000, ...}
     }
     """
-    client = _get_client()
+    client = await _get_client()
     stmt = await client.get_financial_statements(
         edinet_code=edinet_code,
         doc_type=doc_type,
@@ -243,7 +267,7 @@ async def compare_financial_periods(
       ]
     }
     """
-    client = _get_client()
+    client = await _get_client()
     stmt = await client.get_financial_statements(
         edinet_code=edinet_code,
         doc_type=doc_type,
@@ -291,6 +315,6 @@ async def get_company_info(
     ],
 ) -> dict[str, Any]:
     """Get detailed information about a company by EDINET code."""
-    client = _get_client()
+    client = await _get_client()
     company = await client.get_company(edinet_code)
     return company.model_dump()

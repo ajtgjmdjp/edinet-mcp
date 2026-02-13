@@ -4,6 +4,8 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 
 [![PyPI](https://img.shields.io/pypi/v/edinet-mcp)](https://pypi.org/project/edinet-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/edinet-mcp)](https://pypi.org/project/edinet-mcp/)
+[![CI](https://github.com/ajtgjmdjp/edinet-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ajtgjmdjp/edinet-mcp/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/pypi/dm/edinet-mcp)](https://pypi.org/project/edinet-mcp/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
 ## What is this?

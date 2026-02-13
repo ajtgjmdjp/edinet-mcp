@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+
+    from edinet_mcp.models import StatementType
 
 from fastmcp import FastMCP
 from pydantic import Field
@@ -303,8 +305,11 @@ async def list_available_labels(
 
     Returns labels in display order with Japanese and English names.
     """
-    # Type assertion: MCP tools receive string args from clients
-    return get_taxonomy_labels(statement_type)  # type: ignore[arg-type]
+    valid_types = ("income_statement", "balance_sheet", "cash_flow", "cash_flow_statement")
+    if statement_type not in valid_types:
+        msg = f"Invalid statement_type: {statement_type!r}. Must be one of {valid_types}"
+        raise ValueError(msg)
+    return get_taxonomy_labels(cast("StatementType", statement_type))
 
 
 @mcp.tool()

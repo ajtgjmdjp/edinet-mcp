@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -32,6 +33,6 @@ class Settings(BaseSettings):
         return v
 
 
-def get_settings(**overrides: object) -> Settings:
+def get_settings(**overrides: Any) -> Settings:
     """Create a Settings instance, allowing programmatic overrides."""
-    return Settings(**overrides)  # type: ignore[arg-type]
+    return Settings(**overrides)

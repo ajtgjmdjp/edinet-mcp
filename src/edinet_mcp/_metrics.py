@@ -6,7 +6,7 @@ year-over-year comparisons from normalized :class:`FinancialStatement` data.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 if TYPE_CHECKING:
     from edinet_mcp.models import FinancialStatement, PeriodLabel
@@ -305,7 +305,7 @@ def calculate_metrics(stmt: FinancialStatement) -> FinancialMetrics:
     if raw:
         result["raw_values"] = raw
 
-    return result  # type: ignore[return-value]
+    return cast("FinancialMetrics", result)
 
 
 def compare_periods(stmt: FinancialStatement) -> list[PeriodComparison]:
@@ -355,4 +355,4 @@ def compare_periods(stmt: FinancialStatement) -> list[PeriodComparison]:
                 row["増減率"] = f"{change_pct:+.2f}%"
             results.append(row)
 
-    return results  # type: ignore[return-value]
+    return cast("list[PeriodComparison]", results)

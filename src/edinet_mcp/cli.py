@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast
 
 import click
 
@@ -162,4 +162,4 @@ def serve(transport: str) -> None:
     from edinet_mcp.server import mcp
 
     logger.info(f"Starting EDINET MCP server ({transport} transport)")
-    mcp.run(transport=transport)  # type: ignore[arg-type]
+    mcp.run(transport=cast('Literal["stdio", "sse"]', transport))

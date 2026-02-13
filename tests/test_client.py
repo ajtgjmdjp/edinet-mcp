@@ -14,6 +14,7 @@ import pytest
 from edinet_mcp.client import (
     _RETRYABLE_STATUS,
     _ZIP_MAX_FILES,
+    _ZIP_MAX_TOTAL_SIZE,
     EdinetClient,
     _date_range,
     _safe_extractall,
@@ -168,6 +169,29 @@ class TestSafeExtractall:
         buf.seek(0)
         with zipfile.ZipFile(buf) as zf, pytest.raises(ValueError, match="too many files"):
             _safe_extractall(zf, tmp_path)
+
+    def test_total_size_limit_rejected(self, tmp_path: Path) -> None:
+        """ZIP exceeding total uncompressed size limit is rejected."""
+        buf = io.BytesIO()
+        # Create a ZIP with entries that exceed the total size limit
+        chunk = b"x" * (1024 * 1024)  # 1 MB per file
+        num_files = (_ZIP_MAX_TOTAL_SIZE // len(chunk)) + 1
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for i in range(num_files):
+                zf.writestr(f"file_{i}.bin", chunk)
+        buf.seek(0)
+        with zipfile.ZipFile(buf) as zf, pytest.raises(ValueError, match="exceeds"):
+            _safe_extractall(zf, tmp_path)
+
+    def test_nested_directory_extraction(self, tmp_path: Path) -> None:
+        """ZIP with nested directories extracts correctly."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("subdir/nested/test.txt", "nested content")
+        buf.seek(0)
+        with zipfile.ZipFile(buf) as zf:
+            _safe_extractall(zf, tmp_path)
+        assert (tmp_path / "subdir" / "nested" / "test.txt").read_text() == "nested content"
 
 
 class TestValidation:

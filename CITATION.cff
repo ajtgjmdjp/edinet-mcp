@@ -7,7 +7,7 @@ authors:
     given-names: Saichi
     alias: ajtgjmdjp
 date-released: "2025-02-08"
-version: "0.4.1"
+version: "0.4.2"
 url: "https://github.com/ajtgjmdjp/edinet-mcp"
 repository-code: "https://github.com/ajtgjmdjp/edinet-mcp"
 license: Apache-2.0

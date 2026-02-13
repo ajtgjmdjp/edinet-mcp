@@ -128,6 +128,7 @@ class XBRLParser:
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
+            logger.warning("UTF-8 decode failed for %s, falling back to cp932", path.name)
             text = path.read_text(encoding="cp932", errors="replace")
 
         reader = csv.DictReader(io.StringIO(text), delimiter="\t")
@@ -182,7 +183,8 @@ class XBRLParser:
 
         try:
             tree = DefusedET.parse(path)
-        except ET.ParseError:
+        except ET.ParseError as e:
+            logger.warning("Failed to parse XBRL %s: %s", path.name, e)
             return facts
 
         root = tree.getroot()

@@ -15,7 +15,7 @@ Example output after normalization::
 from __future__ import annotations
 
 from importlib.resources import files as pkg_files
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -162,7 +162,7 @@ def _extract_period(item: dict[str, Any]) -> PeriodLabel | None:
     # EDINET TSV format
     period = str(item.get("相対年度", ""))
     if period in ("当期", "前期", "前々期"):
-        return period  # type: ignore[return-value]
+        return cast("PeriodLabel", period)
 
     # XBRL context-based detection
     ctx = str(item.get("context", item.get("コンテキストID", "")))

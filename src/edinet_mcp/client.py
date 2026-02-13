@@ -505,6 +505,44 @@ class EdinetClient:
             return stmt
 
     # ------------------------------------------------------------------
+    # Batch operations
+    # ------------------------------------------------------------------
+
+    async def get_financial_metrics_batch(
+        self,
+        edinet_codes: list[str],
+        *,
+        doc_type: str | DocType = "annual_report",
+        period: str | None = None,
+    ) -> list[tuple[str, FinancialStatement | None, str | None]]:
+        """Fetch financial statements for multiple companies.
+
+        Iterates sequentially (rate limiter handles pacing) and captures
+        errors per company without aborting the entire batch.
+
+        Args:
+            edinet_codes: List of EDINET codes to fetch.
+            doc_type: Document type label (default: "annual_report").
+            period: Filing year (e.g. "2025"). If None, uses latest.
+
+        Returns:
+            List of ``(edinet_code, statement_or_none, error_or_none)`` tuples.
+        """
+        results: list[tuple[str, FinancialStatement | None, str | None]] = []
+        for code in edinet_codes:
+            try:
+                stmt = await self.get_financial_statements(
+                    edinet_code=code,
+                    doc_type=doc_type,
+                    period=period,
+                )
+                results.append((code, stmt, None))
+            except Exception as e:
+                logger.warning(f"Batch fetch failed for {code}: {e}")
+                results.append((code, None, str(e)))
+        return results
+
+    # ------------------------------------------------------------------
     # Company search (using EDINET code list)
     # ------------------------------------------------------------------
 

@@ -27,6 +27,7 @@ from edinet_mcp._metrics import (
     compare_periods,
 )
 from edinet_mcp._normalize import get_taxonomy_labels, normalize_statement
+from edinet_mcp._screening import screen_companies
 from edinet_mcp._validation import FinancialDataWarning, validate_financial_statement
 from edinet_mcp.client import EdinetAPIError, EdinetClient
 from edinet_mcp.models import (
@@ -68,7 +69,8 @@ __all__ = [
     "compare_periods",
     "get_taxonomy_labels",
     "normalize_statement",
+    "screen_companies",
     "validate_financial_statement",
 ]
 
-__version__ = "0.4.2"
+__version__ = "0.5.0"

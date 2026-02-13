@@ -1,6 +1,6 @@
 [project]
 name = "edinet-mcp"
-version = "0.4.2"
+version = "0.5.0"
 description = "EDINET XBRL parsing library and MCP server for Japanese financial data"
 readme = "README.md"
 license = "Apache-2.0"

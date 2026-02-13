@@ -17,6 +17,7 @@ from edinet_mcp.server import (
     get_financial_metrics,
     get_financial_statements,
     list_available_labels,
+    screen_companies,
     search_companies,
 )
 
@@ -29,6 +30,7 @@ _get_financial_metrics = get_financial_metrics.fn
 _compare_financial_periods = compare_financial_periods.fn
 _list_available_labels = list_available_labels.fn
 _get_company_info = get_company_info.fn
+_screen_companies = screen_companies.fn
 
 
 @pytest.fixture()
@@ -159,3 +161,28 @@ class TestGetCompanyInfo:
         assert isinstance(result, dict)
         assert result["edinet_code"] == "E02144"
         assert result["name"] == "トヨタ自動車株式会社"
+
+
+class TestScreenCompanies:
+    async def test_screen_returns_results(self, mock_client):
+        with patch("edinet_mcp.server._get_client", return_value=mock_client):
+            result = await _screen_companies(["E02144"])
+        assert isinstance(result, dict)
+        assert "results" in result
+        assert "errors" in result
+        assert "count" in result
+        assert result["count"] == 1
+
+    async def test_screen_empty_input(self, mock_client):
+        with patch("edinet_mcp.server._get_client", return_value=mock_client):
+            result = await _screen_companies([])
+        assert result["count"] == 0
+        assert result["results"] == []
+
+    async def test_screen_too_many_companies(self, mock_client):
+        codes = [f"E{i:05d}" for i in range(21)]
+        with (
+            patch("edinet_mcp.server._get_client", return_value=mock_client),
+            pytest.raises(ValueError, match="Too many companies"),
+        ):
+            await _screen_companies(codes)

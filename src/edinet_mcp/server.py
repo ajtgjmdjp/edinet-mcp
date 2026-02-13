@@ -32,6 +32,7 @@ from pydantic import Field
 
 from edinet_mcp._metrics import calculate_metrics, compare_periods
 from edinet_mcp._normalize import get_taxonomy_labels
+from edinet_mcp._screening import screen_companies as _screen_companies
 from edinet_mcp.client import EdinetClient
 
 # Lazily initialized client with lock for concurrent-safe access
@@ -77,6 +78,7 @@ mcp = FastMCP(
         "- get_financial_statements: Get normalized BS/PL/CF data\n"
         "- get_financial_metrics: Get calculated ratios (ROE, ROA, margins)\n"
         "- compare_financial_periods: Get year-over-year changes\n"
+        "- screen_companies: Compare metrics across multiple companies\n"
         "- list_available_labels: See which labels are available\n\n"
         "IMPORTANT: The 'period' parameter is the FILING year, not fiscal year. "
         "Japanese companies with March fiscal year-end file annual reports in "
@@ -323,3 +325,62 @@ async def get_company_info(
     client = await _get_client()
     company = await client.get_company(edinet_code)
     return company.model_dump()
+
+
+@mcp.tool()
+async def screen_companies(
+    edinet_codes: Annotated[
+        list[str],
+        Field(
+            description=(
+                "比較対象の企業EDINETコードのリスト (最大20社)。"
+                "例: ['E02144', 'E01777', 'E02529']"
+            )
+        ),
+    ],
+    period: Annotated[
+        str | None,
+        Field(
+            description=(
+                "書類が提出された年 (例: '2025')。省略時は最新。"
+            )
+        ),
+    ] = None,
+    doc_type: Annotated[
+        str,
+        Field(description="'annual_report' or 'quarterly_report'"),
+    ] = "annual_report",
+    sort_by: Annotated[
+        str | None,
+        Field(
+            description=(
+                "ソート基準の指標名 (例: 'ROE', '営業利益率', '売上高')。省略時はソートなし"
+            )
+        ),
+    ] = None,
+) -> dict[str, Any]:
+    """Compare financial metrics across multiple companies.
+
+    Fetches financial statements for each company, calculates key metrics
+    (ROE, ROA, profit margins, etc.), and returns a comparison table.
+
+    Useful for sector analysis, portfolio comparison, and screening.
+    Maximum 20 companies per request (rate limit constraint).
+
+    Example: screen_companies(["E02144", "E01777"]) → {
+      "results": [
+        {"edinet_code": "E02144", "company_name": "トヨタ...", "profitability": {...}, ...},
+        {"edinet_code": "E01777", "company_name": "ソニー...", "profitability": {...}, ...}
+      ],
+      "errors": [],
+      "count": 2
+    }
+    """
+    client = await _get_client()
+    return await _screen_companies(
+        client,
+        edinet_codes,
+        period=period,
+        doc_type=doc_type,
+        sort_by=sort_by,
+    )

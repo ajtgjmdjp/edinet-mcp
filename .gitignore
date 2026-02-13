@@ -20,3 +20,4 @@ htmlcov/
 *.xbrl
 data/cache/
 review_prompt.txt
+.mcpregistry_*

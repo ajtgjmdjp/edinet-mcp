@@ -267,3 +267,5 @@ EDINET data is provided under the [Public Data License 1.0](https://www.digital.
 ## License
 
 Apache-2.0. See [NOTICE](NOTICE) for third-party attributions.
+
+<!-- mcp-name: io.github.ajtgjmdjp/edinet-mcp -->

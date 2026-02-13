@@ -29,3 +29,37 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --extra dev
       - run: uv run pytest --cov=edinet_mcp --cov-report=xml -v
+
+  sdist-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Build sdist
+        run: uv build --sdist
+      - name: Audit sdist for secrets
+        run: |
+          set -euo pipefail
+          SDIST=$(ls dist/*.tar.gz)
+          echo "Checking $SDIST"
+
+          # Check file names for dangerous patterns
+          BAD_FILES=$(tar tzf "$SDIST" | grep -iE '\.env($|\.)|mcpregistry|_token$|_secret$|\.pem$|id_rsa' || true)
+          if [ -n "$BAD_FILES" ]; then
+            echo "::error::Dangerous files found in sdist:"
+            echo "$BAD_FILES"
+            exit 1
+          fi
+
+          # Check file content for token patterns
+          TEMP_DIR=$(mktemp -d)
+          tar xzf "$SDIST" -C "$TEMP_DIR"
+          LEAKED=$(grep -rE 'ghu_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|ghs_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|pypi-[A-Za-z0-9]{20,}' "$TEMP_DIR" || true)
+          if [ -n "$LEAKED" ]; then
+            echo "::error::Token patterns found in sdist content:"
+            echo "$LEAKED" | sed "s|$TEMP_DIR/||"
+            exit 1
+          fi
+
+          echo "sdist audit passed — no secrets detected"
+          rm -rf "$TEMP_DIR"

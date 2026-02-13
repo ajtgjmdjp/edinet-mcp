@@ -57,7 +57,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
-exclude = [".mcpregistry_*", ".env", ".env.*"]
+exclude = [".env", ".env.*", ".mcpregistry_*", ".claude/"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/edinet_mcp"]

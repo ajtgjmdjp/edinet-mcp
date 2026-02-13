@@ -17,7 +17,8 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 - **Automatic normalization**: `stmt["売上高"]` works regardless of accounting standard
 - Financial metrics (ROE, ROA, profit margins) and year-over-year comparisons
 - Parse XBRL into Polars/pandas DataFrames (BS, PL, CF)
-- MCP server with 7 tools for Claude Desktop and other AI tools
+- **Multi-company screening**: Compare financial metrics across up to 20 companies
+- MCP server with 8 tools for Claude Desktop and other AI tools
 
 ## Quick Start
 
@@ -85,6 +86,29 @@ async def main():
 asyncio.run(main())
 ```
 
+### Multi-Company Screening
+
+```python
+import asyncio
+from edinet_mcp import EdinetClient, screen_companies
+
+async def main():
+    async with EdinetClient() as client:
+        result = await screen_companies(
+            client,
+            ["E02144", "E01777", "E01967"],  # Toyota, Sony, Keyence
+            period="2025",
+            sort_by="営業利益率",  # Sort by operating margin
+        )
+        for r in result["results"]:
+            print(f"{r['company_name']}: {r['profitability']['営業利益率']}")
+        # 株式会社キーエンス: 51.91%
+        # ソニーグループ株式会社: 11.69%
+        # トヨタ自動車株式会社: 9.98%
+
+asyncio.run(main())
+```
+
 ## MCP Server
 
 Add to your AI tool's MCP config:
@@ -145,6 +169,7 @@ Then ask your AI: "トヨタの最新の営業利益を教えて"
 | `get_financial_statements` | 正規化された財務諸表 (BS/PL/CF) を取得 |
 | `get_financial_metrics` | ROE・ROA・利益率等の財務指標を計算 |
 | `compare_financial_periods` | 前年比較（増減額・増減率） |
+| `screen_companies` | 複数企業の財務指標を一括比較（最大20社） |
 | `list_available_labels` | 取得可能な財務科目の一覧 |
 | `get_company_info` | 企業の詳細情報を取得 |
 
@@ -280,7 +305,7 @@ EDINET API → Parser (XBRL/TSV) → Normalizer (taxonomy.yaml) → MCP Server
 git clone https://github.com/ajtgjmdjp/edinet-mcp
 cd edinet-mcp
 uv sync --extra dev
-uv run pytest -v           # 179 tests
+uv run pytest -v           # 192 tests
 uv run ruff check src/
 ```
 

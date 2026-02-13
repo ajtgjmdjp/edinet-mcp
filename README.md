@@ -15,7 +15,7 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 - Search 5,000+ listed Japanese companies
 - Retrieve annual/quarterly financial reports (有価証券報告書, 四半期報告書)
 - **Automatic normalization**: `stmt["売上高"]` works regardless of accounting standard
-- Financial metrics (ROE, ROA, profit margins) and year-over-year comparison
+- Financial metrics (ROE, ROA, profit margins) and year-over-year comparisons
 - Parse XBRL into Polars/pandas DataFrames (BS, PL, CF)
 - MCP server with 7 tools for Claude Desktop and other AI tools
 
@@ -83,9 +83,12 @@ async def main():
 asyncio.run(main())
 ```
 
-## MCP Server (for Claude Desktop)
+## MCP Server
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Add to your AI tool's MCP config:
+
+<details>
+<summary><b>Claude Desktop</b> (~⁠/Library/Application Support/Claude/claude_desktop_config.json)</summary>
 
 ```json
 {
@@ -100,8 +103,36 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   }
 }
 ```
+</details>
 
-Then ask Claude: "トヨタの最新の営業利益を教えて"
+<details>
+<summary><b>Cursor</b> (~⁠/.cursor/mcp.json)</summary>
+
+```json
+{
+  "mcpServers": {
+    "edinet": {
+      "command": "uvx",
+      "args": ["edinet-mcp", "serve"],
+      "env": {
+        "EDINET_API_KEY": "your_key_here"
+      }
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><b>Claude Code</b></summary>
+
+```bash
+claude mcp add edinet -- uvx edinet-mcp serve
+# Then set EDINET_API_KEY in your environment
+```
+</details>
+
+Then ask your AI: "トヨタの最新の営業利益を教えて"
 
 ### Available MCP Tools
 

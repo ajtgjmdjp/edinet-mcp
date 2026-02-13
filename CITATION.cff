@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "edinet-mcp: EDINET XBRL Parsing Library and MCP Server"
+type: software
+authors:
+  - family-names: Ogawa
+    given-names: Saichi
+    alias: ajtgjmdjp
+date-released: "2025-02-08"
+version: "0.4.1"
+url: "https://github.com/ajtgjmdjp/edinet-mcp"
+repository-code: "https://github.com/ajtgjmdjp/edinet-mcp"
+license: Apache-2.0
+keywords:
+  - edinet
+  - xbrl
+  - japanese
+  - financial
+  - mcp
+  - model-context-protocol

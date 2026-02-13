@@ -27,6 +27,8 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 pip install edinet-mcp
 # or
 uv add edinet-mcp
+# or with Docker
+docker run -e EDINET_API_KEY=your_key ghcr.io/ajtgjmdjp/edinet-mcp serve
 ```
 
 ### Get an API Key

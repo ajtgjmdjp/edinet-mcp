@@ -11,8 +11,12 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from typing import TYPE_CHECKING
 
 import click
+
+if TYPE_CHECKING:
+    from edinet_mcp.models import Company, FinancialStatement
 from loguru import logger
 
 
@@ -42,7 +46,7 @@ def search(query: str, limit: int, as_json: bool) -> None:
     """
     from edinet_mcp.client import EdinetClient
 
-    async def _run() -> list:
+    async def _run() -> list[Company]:
         async with EdinetClient() as client:
             return await client.search_companies(query)
 
@@ -97,7 +101,7 @@ def statements(
     """
     from edinet_mcp.client import EdinetClient
 
-    async def _run():  # type: ignore[no-untyped-def]
+    async def _run() -> FinancialStatement:
         async with EdinetClient() as client:
             return await client.get_financial_statements(
                 edinet_code=edinet_code,

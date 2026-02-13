@@ -1,8 +1,9 @@
 """Command-line interface for edinet-mcp.
 
-Provides three commands:
+Provides four commands:
 - ``edinet-mcp search``: Search for companies
 - ``edinet-mcp statements``: Fetch financial statements
+- ``edinet-mcp test``: Test API key and connectivity
 - ``edinet-mcp serve``: Start the MCP server
 """
 
@@ -143,6 +144,71 @@ def statements(
         # Table format using Polars' built-in pretty printing
         df = data.to_polars()
         click.echo(str(df))
+
+
+@cli.command("test")
+def test_connection() -> None:
+    """Test API key and connectivity to EDINET.
+
+    Verifies that your EDINET_API_KEY is set and working by making
+    a lightweight API call. Also checks cache directory status.
+
+    Examples:
+
+        edinet-mcp test
+    """
+    import os
+
+    from edinet_mcp import __version__
+
+    click.echo(f"edinet-mcp v{__version__}\n")
+
+    # 1. Check API key
+    api_key = os.environ.get("EDINET_API_KEY", "")
+    if not api_key:
+        click.echo("[FAIL] EDINET_API_KEY is not set", err=True)
+        click.echo(
+            "  Set it with: export EDINET_API_KEY=your_key_here",
+            err=True,
+        )
+        sys.exit(1)
+    click.echo(f"[OK]   EDINET_API_KEY is set ({api_key[:4]}...{api_key[-2:]})")
+
+    # 2. Check cache directory
+    from edinet_mcp._config import get_settings
+
+    settings = get_settings()
+    cache_dir = settings.cache_dir
+    if cache_dir.exists():
+        cache_files = [f for f in cache_dir.rglob("*") if f.is_file()]
+        cache_bytes = sum(f.stat().st_size for f in cache_files)
+        cache_mb = cache_bytes / 1024 / 1024
+        click.echo(
+            f"[OK]   Cache: {cache_dir} ({len(cache_files)} files, {cache_mb:.1f} MB)"
+        )
+    else:
+        click.echo(f"[INFO] Cache: {cache_dir} (not created yet)")
+
+    # 3. Test API connectivity
+    click.echo("\nTesting API connectivity...")
+
+    from edinet_mcp.client import EdinetClient
+
+    async def _test() -> str:
+        async with EdinetClient() as client:
+            companies = await client.search_companies("トヨタ")
+            if companies:
+                return f"Found {len(companies)} results (e.g. {companies[0].name})"
+            return "API responded but no results for test query"
+
+    try:
+        result = asyncio.run(_test())
+        click.echo(f"[OK]   {result}")
+    except Exception as e:
+        click.echo(f"[FAIL] API error: {e}", err=True)
+        sys.exit(1)
+
+    click.echo("\nAll checks passed.")
 
 
 @cli.command()

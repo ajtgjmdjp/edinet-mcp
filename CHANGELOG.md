@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-14
+
+### Added
+- **Multi-company screening**: `screen_companies()` function and MCP tool for comparing financial metrics across up to 20 companies in a single call
+  - Sort results by any metric (ROE, 営業利益率, etc.)
+  - Error-tolerant batch processing (partial results on individual failures)
+- **Client batch helper**: `EdinetClient.get_financial_metrics_batch()` for fetching statements for multiple companies
+- 13 new tests for screening feature (8 unit + 5 MCP tool)
+
+## [0.4.2] - 2026-02-13
+
+### Security
+- Exclude `.env`, `.tokens`, and other secrets from sdist/wheel builds via `pyproject.toml` `[tool.hatch.build.targets.sdist]` exclude patterns
+- Add CI `sdist-audit` job to prevent accidental secret leaks in published packages
+
+### Fixed
+- Type safety improvements for MCP tool input validation
+
+## [0.4.0] - 2026-02-12
+
+### Changed
+- **Native async migration**: Replaced `asyncio.to_thread()` with `httpx.AsyncClient` for all HTTP calls
+  - Removes threading overhead and enables true async I/O
+  - All 179 tests passing
+
+### Removed
+- `httpx` synchronous client usage (now fully async)
+
+## [0.3.0] - 2026-02-11
+
+### Added
+- **Production retry logic**: Automatic retry with exponential backoff on 429/5xx errors (configurable `max_retries`)
+- **Cache TTL**: Company list cache expires after 30 days, filings after 24 hours
+- **Expanded taxonomy**: 140 → 161 financial line items with IFRS suffix stripping
+- **Date query optimization**: Narrower search windows for `get_financial_statements()`
+- IFRS normalization fixes (suffix stripping for `SummaryOfBusinessResults`, `NonConsolidated` context exclusion)
+- Ticker column mapping fix for company search
+- 38 additional tests (141 → 179 total)
+
 ## [0.2.2] - 2026-02-11
 
 ### Added

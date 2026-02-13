@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.ajtgjmdjp/edinet-mcp",
-  "description": "Access Japanese financial disclosures (EDINET). Search companies, retrieve BS/PL/CF statements.",
+  "description": "Access Japanese financial disclosures (EDINET). Search companies, retrieve normalized BS/PL/CF statements, calculate financial metrics, and compare across companies.",
   "repository": {
     "url": "https://github.com/ajtgjmdjp/edinet-mcp",
     "source": "github"
   },
-  "version": "0.4.1",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "edinet-mcp",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "transport": {
         "type": "stdio"
       },

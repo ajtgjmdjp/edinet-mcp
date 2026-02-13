@@ -129,6 +129,36 @@ class TestStatementsCommand:
         assert result.exit_code != 0
 
 
+@patch("edinet_mcp.client.EdinetClient")
+class TestTestCommand:
+    def test_success(self, mock_cls, sample_company):
+        mock_cls.return_value = _async_client_mock(
+            search_companies=[sample_company]
+        )
+        runner = CliRunner(env={"EDINET_API_KEY": "test_key_abc"})
+        result = runner.invoke(cli, ["test"])
+        assert result.exit_code == 0
+        assert "[OK]   EDINET_API_KEY is set" in result.output
+        assert "All checks passed" in result.output
+
+    def test_missing_api_key(self, mock_cls):
+        runner = CliRunner(env={"EDINET_API_KEY": ""})
+        result = runner.invoke(cli, ["test"])
+        assert result.exit_code != 0
+        assert "FAIL" in result.output
+
+    def test_api_error(self, mock_cls):
+        instance = _async_client_mock()
+        instance.search_companies = AsyncMock(
+            side_effect=Exception("Connection refused")
+        )
+        mock_cls.return_value = instance
+        runner = CliRunner(env={"EDINET_API_KEY": "test_key_abc"})
+        result = runner.invoke(cli, ["test"])
+        assert result.exit_code != 0
+        assert "API error" in result.output
+
+
 class TestVerboseFlag:
     def test_verbose_sets_debug(self):
         runner = CliRunner()

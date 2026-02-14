@@ -1,9 +1,10 @@
 """Command-line interface for edinet-mcp.
 
-Provides five commands:
+Provides six commands:
 - ``edinet-mcp search``: Search for companies
 - ``edinet-mcp statements``: Fetch financial statements
 - ``edinet-mcp screen``: Screen and compare financial metrics
+- ``edinet-mcp diff``: Compare financial statements across two periods
 - ``edinet-mcp test``: Test API key and connectivity
 - ``edinet-mcp serve``: Start the MCP server
 """
@@ -253,6 +254,108 @@ def screen(
         click.echo("")
         for err in errors:
             click.echo(f"  [ERROR] {err['edinet_code']}: {err['error']}", err=True)
+
+
+@cli.command("diff")
+@click.option("--edinet-code", "-c", required=True, help="EDINET code (e.g. E02144).")
+@click.option("--period1", "-p1", required=True, help="First period year (e.g. 2023).")
+@click.option("--period2", "-p2", required=True, help="Second period year (e.g. 2024).")
+@click.option("--doc-type", "-t", default="annual_report", help="Document type.")
+@click.option(
+    "--format",
+    "-f",
+    "fmt",
+    type=click.Choice(["table", "json"]),
+    default="table",
+    help="Output format.",
+)
+def diff(
+    edinet_code: str,
+    period1: str,
+    period2: str,
+    doc_type: str,
+    fmt: str,
+) -> None:
+    """Compare financial statements across two periods (xbrl-diff).
+
+    Shows changes (増減額) and growth rates (増減率) for each line item.
+
+    Examples:
+
+        edinet-mcp diff -c E02144 -p1 2023 -p2 2024
+
+        edinet-mcp diff -c E02144 -p1 2023 -p2 2024 --format json
+    """
+    from edinet_mcp._diff import DiffResult, diff_statements
+    from edinet_mcp.client import EdinetClient
+
+    async def _run() -> DiffResult:
+        async with EdinetClient() as client:
+            return await diff_statements(
+                client,
+                edinet_code=edinet_code,
+                period1=period1,
+                period2=period2,
+                doc_type=doc_type,
+            )
+
+    try:
+        result = asyncio.run(_run())
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    if fmt == "json":
+        click.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    # Table output
+    click.echo(
+        f"Diff: {result['company_name']} ({result['edinet_code']})\n"
+        f"Periods: {result['period1']} → {result['period2']} | "
+        f"Standard: {result['accounting_standard']}\n"
+    )
+
+    diffs = result["diffs"]
+    if not diffs:
+        click.echo("No differences found.")
+        return
+
+    # Group by statement type
+    for stmt_type in ("income_statement", "balance_sheet", "cash_flow_statement"):
+        stmt_diffs = [d for d in diffs if d["statement"] == stmt_type]
+        if not stmt_diffs:
+            continue
+
+        label = stmt_type.replace("_", " ").title()
+        click.echo(f"--- {label} ({len(stmt_diffs)} items) ---")
+        click.echo(
+            f"  {'科目':<24}  {result['period1']:>14}  {result['period2']:>14}"
+            f"  {'増減額':>14}  {'増減率':>8}"
+        )
+        click.echo("  " + "-" * 80)
+
+        for d in stmt_diffs:
+            p1 = d["period1_value"]
+            p2 = d["period2_value"]
+            v1 = f"{p1:>14,.0f}" if p1 is not None else f"{'---':>14}"
+            v2 = f"{p2:>14,.0f}" if p2 is not None else f"{'---':>14}"
+            chg = f"{d['増減額']:>14,.0f}" if d["増減額"] is not None else f"{'---':>14}"
+            rate = f"{d['増減率']:>8}" if d["増減率"] is not None else f"{'---':>8}"
+            name = d["科目"]
+            if len(name) > 24:
+                name = name[:22] + ".."
+            click.echo(f"  {name:<24}  {v1}  {v2}  {chg}  {rate}")
+
+        click.echo()
+
+    # Summary
+    summary = result["summary"]
+    click.echo(
+        f"Summary: {summary['total_items']} items | "
+        f"↑{summary['increased']} increased | ↓{summary['decreased']} decreased | "
+        f"→{summary['unchanged']} unchanged"
+    )
 
 
 @cli.command("test")

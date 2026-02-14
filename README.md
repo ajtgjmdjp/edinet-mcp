@@ -9,6 +9,8 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![ClawHub](https://img.shields.io/badge/ClawHub-edinet--mcp-orange)](https://clawhub.com/skills/edinet-mcp)
 
+Part of the [Japan Finance Data Stack](https://github.com/ajtgjmdjp/awesome-japan-finance-data): **edinet-mcp** (securities filings) | [tdnet-disclosure-mcp](https://github.com/ajtgjmdjp/tdnet-disclosure-mcp) (timely disclosures) | [estat-mcp](https://github.com/ajtgjmdjp/estat-mcp) (government statistics) | [boj-mcp](https://github.com/ajtgjmdjp/boj-mcp) (Bank of Japan) | [japan-news-mcp](https://github.com/ajtgjmdjp/japan-news-mcp) (financial news) | [jquants-mcp](https://github.com/ajtgjmdjp/jquants-mcp) (stock prices)
+
 ## What is this?
 
 **edinet-mcp** provides programmatic access to Japan's [EDINET](https://disclosure.edinet-fsa.go.jp/) financial disclosure system. It normalizes XBRL filings across accounting standards (J-GAAP / IFRS / US-GAAP) into canonical Japanese labels and exposes them as an [MCP](https://modelcontextprotocol.io/) server for AI assistants.
@@ -19,7 +21,8 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 - Financial metrics (ROE, ROA, profit margins) and year-over-year comparisons
 - Parse XBRL into Polars/pandas DataFrames (BS, PL, CF)
 - **Multi-company screening**: Compare financial metrics across up to 20 companies
-- MCP server with 8 tools for Claude Desktop and other AI tools
+- **Cross-period diff (xbrl-diff)**: Compare financial statements across periods with change amounts (増減額) and growth rates (増減率)
+- MCP server with 9 tools for Claude Desktop and other AI tools
 
 ## Quick Start
 
@@ -110,6 +113,27 @@ async def main():
 asyncio.run(main())
 ```
 
+### Cross-Period Diff
+
+```python
+import asyncio
+from edinet_mcp import EdinetClient, diff_statements
+
+async def main():
+    async with EdinetClient() as client:
+        result = await diff_statements(
+            client, "E02144",
+            period1="2024", period2="2025",
+        )
+        for d in result["diffs"][:5]:
+            print(f"{d['科目']}: {d['増減額']:+,.0f} ({d['増減率']})")
+        # 売上高: +7,941,027,000,000 (+21.38%)
+        # 営業利益: +1,204,832,000,000 (+28.44%)
+        # ...
+
+asyncio.run(main())
+```
+
 ## MCP Server
 
 Add to your AI tool's MCP config:
@@ -173,6 +197,7 @@ Then ask your AI: "トヨタの最新の営業利益を教えて"
 | `screen_companies` | 複数企業の財務指標を一括比較（最大20社） |
 | `list_available_labels` | 取得可能な財務科目の一覧 |
 | `get_company_info` | 企業の詳細情報を取得 |
+| `diff_financial_statements` | 2期間の財務諸表を比較（増減額・増減率） |
 
 > **Note**: The `period` parameter is the **filing year**, not the fiscal year. Japanese companies with a March fiscal year-end file annual reports in June of the following year (e.g., FY2024 → filed 2025 → `period="2025"`).
 
@@ -184,6 +209,12 @@ edinet-mcp search トヨタ
 
 # Fetch income statement
 edinet-mcp statements -c E02144 -p 2024
+
+# Screen multiple companies
+edinet-mcp screen E02144 E01777 E02529 --sort-by ROE
+
+# Compare across periods (xbrl-diff)
+edinet-mcp diff -c E02144 -p1 2023 -p2 2024
 
 # Start MCP server
 edinet-mcp serve
@@ -306,7 +337,7 @@ EDINET API → Parser (XBRL/TSV) → Normalizer (taxonomy.yaml) → MCP Server
 git clone https://github.com/ajtgjmdjp/edinet-mcp
 cd edinet-mcp
 uv sync --extra dev
-uv run pytest -v           # 192 tests
+uv run pytest -v           # 213 tests
 uv run ruff check src/
 ```
 
@@ -319,9 +350,17 @@ EDINET data is provided under the [Public Data License 1.0](https://www.digital.
 
 ## Related Projects
 
+**Japan Finance Data Stack** (by same author):
+- [tdnet-disclosure-mcp](https://github.com/ajtgjmdjp/tdnet-disclosure-mcp) — TDNET timely disclosures (適時開示)
+- [estat-mcp](https://github.com/ajtgjmdjp/estat-mcp) — Government statistics (e-Stat)
+- [boj-mcp](https://github.com/ajtgjmdjp/boj-mcp) — Bank of Japan statistics
+- [japan-news-mcp](https://github.com/ajtgjmdjp/japan-news-mcp) — Japanese financial news
+- [jquants-mcp](https://github.com/ajtgjmdjp/jquants-mcp) — Stock prices (J-Quants)
+- [jfinqa](https://github.com/ajtgjmdjp/jfinqa) — Japanese financial QA benchmark
+
+**Community**:
 - [edinet2dataset](https://github.com/SakanaAI/edinet2dataset) — Sakana AI's EDINET XBRL→JSON tool
 - [EDINET-Bench](https://github.com/SakanaAI/EDINET-Bench) — Financial classification benchmark
-- [jfinqa](https://github.com/ajtgjmdjp/jfinqa) — Japanese financial QA benchmark (companion project)
 
 ## License
 

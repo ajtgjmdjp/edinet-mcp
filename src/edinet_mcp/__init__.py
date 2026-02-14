@@ -14,6 +14,7 @@ Quick start::
     asyncio.run(main())
 """
 
+from edinet_mcp._diff import DiffResult, LineItemDiff, diff_statements
 from edinet_mcp._metrics import (
     CashFlowMetrics,
     EfficiencyMetrics,
@@ -47,6 +48,7 @@ __all__ = [
     "AccountingStandard",
     "CashFlowMetrics",
     "Company",
+    "DiffResult",
     "DocType",
     "EdinetAPIError",
     "EdinetClient",
@@ -56,6 +58,7 @@ __all__ = [
     "FinancialMetrics",
     "FinancialStatement",
     "GrowthMetrics",
+    "LineItemDiff",
     "MetricCategory",
     "PeriodComparison",
     "PeriodLabel",
@@ -67,10 +70,11 @@ __all__ = [
     "XBRLParser",
     "calculate_metrics",
     "compare_periods",
+    "diff_statements",
     "get_taxonomy_labels",
     "normalize_statement",
     "screen_companies",
     "validate_financial_statement",
 ]
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"

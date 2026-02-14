@@ -12,7 +12,7 @@ from loguru import logger
 
 if TYPE_CHECKING:
     from edinet_mcp.client import EdinetClient
-    from edinet_mcp.models import FinancialStatement, StatementData
+    from edinet_mcp.models import StatementData
 
 
 class LineItemDiff(TypedDict):

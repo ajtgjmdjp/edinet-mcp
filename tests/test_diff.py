@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from edinet_mcp._diff import (
     LineItemDiff,
@@ -14,7 +15,7 @@ from edinet_mcp._diff import (
     _extract_current_value,
     diff_statements,
 )
-from edinet_mcp.models import FinancialStatement, StatementData
+from edinet_mcp.models import StatementData
 
 
 class TestDiffHelpers:
@@ -54,9 +55,21 @@ class TestDiffHelpers:
     def test_calculate_summary(self) -> None:
         """Test summary calculation."""
         diffs = [
-            LineItemDiff(statement="income_statement", 科目="売上高", period1_value=100, period2_value=150, 増減額=50, 増減率="+50.00%"),
-            LineItemDiff(statement="income_statement", 科目="営業利益", period1_value=50, period2_value=30, 増減額=-20, 増減率="-40.00%"),
-            LineItemDiff(statement="balance_sheet", 科目="総資産", period1_value=1000, period2_value=1000, 増減額=0, 増減率="+0.00%"),
+            LineItemDiff(
+                statement="income_statement", 科目="売上高",
+                period1_value=100, period2_value=150,
+                増減額=50, 増減率="+50.00%",
+            ),
+            LineItemDiff(
+                statement="income_statement", 科目="営業利益",
+                period1_value=50, period2_value=30,
+                増減額=-20, 増減率="-40.00%",
+            ),
+            LineItemDiff(
+                statement="balance_sheet", 科目="総資産",
+                period1_value=1000, period2_value=1000,
+                増減額=0, 増減率="+0.00%",
+            ),
         ]
         
         summary = _calculate_summary(diffs)
@@ -78,11 +91,13 @@ class TestCompareStatement:
         """Test comparing two statements."""
         stmt1 = MagicMock(spec=StatementData)
         stmt1.labels = ["売上高", "営業利益"]
-        stmt1.__getitem__ = MagicMock(side_effect=lambda k: {"売上高": {"当期": 100}, "営業利益": {"当期": 50}}[k])
-        
+        stmt1_data = {"売上高": {"当期": 100}, "営業利益": {"当期": 50}}
+        stmt1.__getitem__ = MagicMock(side_effect=lambda k: stmt1_data[k])
+
         stmt2 = MagicMock(spec=StatementData)
         stmt2.labels = ["売上高", "営業利益"]
-        stmt2.__getitem__ = MagicMock(side_effect=lambda k: {"売上高": {"当期": 150}, "営業利益": {"当期": 60}}[k])
+        stmt2_data = {"売上高": {"当期": 150}, "営業利益": {"当期": 60}}
+        stmt2.__getitem__ = MagicMock(side_effect=lambda k: stmt2_data[k])
         
         diffs = _compare_statement(stmt1, stmt2, "income_statement")
         

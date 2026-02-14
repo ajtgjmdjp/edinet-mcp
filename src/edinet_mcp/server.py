@@ -419,7 +419,8 @@ async def diff_financial_statements(
       "period1": "2024",
       "period2": "2025",
       "diffs": [
-        {"statement": "income_statement", "科目": "売上高", "増減額": 7941025000000, "増減率": "+21.38%"},
+        {"statement": "income_statement", "科目": "売上高",
+         "増減額": 7941025000000, "増減率": "+21.38%"},
         ...
       ],
       "summary": {"total_items": 45, "increased": 30, "decreased": 12, ...}

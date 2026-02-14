@@ -234,7 +234,7 @@ class TestScreenCommand:
         mock_screen.side_effect = ValueError("Too many companies: 25 (max 20)")
         runner = CliRunner()
         codes = [f"E{i:05d}" for i in range(25)]
-        result = runner.invoke(cli, ["screen"] + codes)
+        result = runner.invoke(cli, ["screen", *codes])
         assert result.exit_code != 0
         assert "Error:" in result.output
 

@@ -147,7 +147,6 @@ def statements(
         click.echo(str(df))
 
 
-
 @cli.command()
 @click.argument("edinet_codes", nargs=-1, required=True)
 @click.option("--sort-by", default=None, help="Metric to sort by (e.g. ROE, 営業利益率).")

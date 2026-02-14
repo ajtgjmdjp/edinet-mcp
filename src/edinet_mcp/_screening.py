@@ -99,7 +99,12 @@ def _sort_by_metric(
     placed at the end.
     """
     metric_categories = (
-        "profitability", "stability", "efficiency", "growth", "cash_flow", "raw_values",
+        "profitability",
+        "stability",
+        "efficiency",
+        "growth",
+        "cash_flow",
+        "raw_values",
     )
 
     def _extract_sort_value(row: dict[str, Any]) -> float | None:

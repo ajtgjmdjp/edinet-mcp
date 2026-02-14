@@ -129,7 +129,6 @@ class TestStatementsCommand:
         assert result.exit_code != 0
 
 
-
 @patch("edinet_mcp.client.EdinetClient")
 @patch("edinet_mcp._screening.screen_companies")
 class TestScreenCommand:
@@ -154,9 +153,7 @@ class TestScreenCommand:
 
     def test_screen_table(self, mock_screen, mock_client_cls):
         mock_client_cls.return_value = _async_client_mock()
-        mock_screen.return_value = self._make_result(
-            companies=[self._sample_row()]
-        )
+        mock_screen.return_value = self._make_result(companies=[self._sample_row()])
         runner = CliRunner()
         result = runner.invoke(cli, ["screen", "E02144"])
         assert result.exit_code == 0
@@ -165,9 +162,7 @@ class TestScreenCommand:
 
     def test_screen_json(self, mock_screen, mock_client_cls):
         mock_client_cls.return_value = _async_client_mock()
-        mock_screen.return_value = self._make_result(
-            companies=[self._sample_row()]
-        )
+        mock_screen.return_value = self._make_result(companies=[self._sample_row()])
         runner = CliRunner()
         result = runner.invoke(cli, ["screen", "E02144", "--format", "json"])
         assert result.exit_code == 0
@@ -192,9 +187,7 @@ class TestScreenCommand:
 
     def test_screen_sort_by(self, mock_screen, mock_client_cls):
         mock_client_cls.return_value = _async_client_mock()
-        mock_screen.return_value = self._make_result(
-            companies=[self._sample_row()]
-        )
+        mock_screen.return_value = self._make_result(companies=[self._sample_row()])
         runner = CliRunner()
         result = runner.invoke(cli, ["screen", "E02144", "--sort-by", "ROE"])
         assert result.exit_code == 0
@@ -242,9 +235,7 @@ class TestScreenCommand:
 @patch("edinet_mcp.client.EdinetClient")
 class TestTestCommand:
     def test_success(self, mock_cls, sample_company):
-        mock_cls.return_value = _async_client_mock(
-            search_companies=[sample_company]
-        )
+        mock_cls.return_value = _async_client_mock(search_companies=[sample_company])
         runner = CliRunner(env={"EDINET_API_KEY": "test_key_abc"})
         result = runner.invoke(cli, ["test"])
         assert result.exit_code == 0
@@ -259,9 +250,7 @@ class TestTestCommand:
 
     def test_api_error(self, mock_cls):
         instance = _async_client_mock()
-        instance.search_companies = AsyncMock(
-            side_effect=Exception("Connection refused")
-        )
+        instance.search_companies = AsyncMock(side_effect=Exception("Connection refused"))
         mock_cls.return_value = instance
         runner = CliRunner(env={"EDINET_API_KEY": "test_key_abc"})
         result = runner.invoke(cli, ["test"])

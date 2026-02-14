@@ -292,9 +292,7 @@ def test_connection() -> None:
         cache_files = [f for f in cache_dir.rglob("*") if f.is_file()]
         cache_bytes = sum(f.stat().st_size for f in cache_files)
         cache_mb = cache_bytes / 1024 / 1024
-        click.echo(
-            f"[OK]   Cache: {cache_dir} ({len(cache_files)} files, {cache_mb:.1f} MB)"
-        )
+        click.echo(f"[OK]   Cache: {cache_dir} ({len(cache_files)} files, {cache_mb:.1f} MB)")
     else:
         click.echo(f"[INFO] Cache: {cache_dir} (not created yet)")
 

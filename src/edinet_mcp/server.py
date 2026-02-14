@@ -334,18 +334,13 @@ async def screen_companies(
         list[str],
         Field(
             description=(
-                "比較対象の企業EDINETコードのリスト (最大20社)。"
-                "例: ['E02144', 'E01777', 'E02529']"
+                "比較対象の企業EDINETコードのリスト (最大20社)。例: ['E02144', 'E01777', 'E02529']"
             )
         ),
     ],
     period: Annotated[
         str | None,
-        Field(
-            description=(
-                "書類が提出された年 (例: '2025')。省略時は最新。"
-            )
-        ),
+        Field(description=("書類が提出された年 (例: '2025')。省略時は最新。")),
     ] = None,
     doc_type: Annotated[
         str,

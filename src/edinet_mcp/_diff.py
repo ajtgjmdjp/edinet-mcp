@@ -89,25 +89,31 @@ async def diff_statements(
     diffs: list[LineItemDiff] = []
 
     # Compare income statements
-    diffs.extend(_compare_statement(
-        stmt1.income_statement,
-        stmt2.income_statement,
-        "income_statement",
-    ))
+    diffs.extend(
+        _compare_statement(
+            stmt1.income_statement,
+            stmt2.income_statement,
+            "income_statement",
+        )
+    )
 
     # Compare balance sheets
-    diffs.extend(_compare_statement(
-        stmt1.balance_sheet,
-        stmt2.balance_sheet,
-        "balance_sheet",
-    ))
+    diffs.extend(
+        _compare_statement(
+            stmt1.balance_sheet,
+            stmt2.balance_sheet,
+            "balance_sheet",
+        )
+    )
 
     # Compare cash flow statements
-    diffs.extend(_compare_statement(
-        stmt1.cash_flow_statement,
-        stmt2.cash_flow_statement,
-        "cash_flow_statement",
-    ))
+    diffs.extend(
+        _compare_statement(
+            stmt1.cash_flow_statement,
+            stmt2.cash_flow_statement,
+            "cash_flow_statement",
+        )
+    )
 
     # Sort diffs by absolute change magnitude
     diffs.sort(key=lambda x: abs(x.get("増減額") or 0), reverse=True)
@@ -149,14 +155,16 @@ def _compare_statement(
         change = _calculate_change(val1, val2)
         change_rate = _calculate_change_rate(val1, val2)
 
-        diffs.append(LineItemDiff(
-            statement=statement_type,
-            科目=label,
-            period1_value=val1,
-            period2_value=val2,
-            増減額=change,
-            増減率=change_rate,
-        ))
+        diffs.append(
+            LineItemDiff(
+                statement=statement_type,
+                科目=label,
+                period1_value=val1,
+                period2_value=val2,
+                増減額=change,
+                増減率=change_rate,
+            )
+        )
 
     return diffs
 

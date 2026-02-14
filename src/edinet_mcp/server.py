@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 from fastmcp import FastMCP
 from pydantic import Field
 
+from edinet_mcp._diff import diff_statements as _diff_statements
 from edinet_mcp._metrics import calculate_metrics, compare_periods
 from edinet_mcp._normalize import get_taxonomy_labels
 from edinet_mcp._screening import screen_companies as _screen_companies
@@ -384,3 +385,62 @@ async def screen_companies(
         doc_type=doc_type,
         sort_by=sort_by,
     )
+
+
+@mcp.tool()
+async def diff_financial_statements(
+    edinet_code: Annotated[
+        str,
+        Field(description="企業のEDINETコード (例: 'E02144')"),
+    ],
+    period1: Annotated[
+        str,
+        Field(description="比較元の期間 (例: '2024')"),
+    ],
+    period2: Annotated[
+        str,
+        Field(description="比較先の期間 (例: '2025')"),
+    ],
+    doc_type: Annotated[
+        str,
+        Field(description="'annual_report' (有価証券報告書) or 'quarterly_report' (四半期報告書)"),
+    ] = "annual_report",
+) -> dict[str, Any]:
+    """Compare financial statements for the same company across two periods.
+
+    Calculates changes (増減額) and growth rates (増減率) for each line item
+    in the income statement, balance sheet, and cash flow statement.
+
+    Useful for analyzing year-over-year performance changes.
+
+    Example: diff_financial_statements("E02144", "2024", "2025") → {
+      "edinet_code": "E02144",
+      "company_name": "トヨタ自動車株式会社",
+      "period1": "2024",
+      "period2": "2025",
+      "diffs": [
+        {"statement": "income_statement", "科目": "売上高", "増減額": 7941025000000, "増減率": "+21.38%"},
+        ...
+      ],
+      "summary": {"total_items": 45, "increased": 30, "decreased": 12, ...}
+    }
+    """
+    client = await _get_client()
+
+    result = await _diff_statements(
+        client,
+        edinet_code=edinet_code,
+        period1=period1,
+        period2=period2,
+        doc_type=doc_type,
+    )
+
+    return {
+        "edinet_code": result["edinet_code"],
+        "company_name": result["company_name"],
+        "period1": result["period1"],
+        "period2": result["period2"],
+        "accounting_standard": result["accounting_standard"],
+        "diffs": result["diffs"][:50],  # Limit output size for MCP
+        "summary": result["summary"],
+    }

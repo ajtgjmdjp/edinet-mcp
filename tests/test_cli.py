@@ -129,6 +129,116 @@ class TestStatementsCommand:
         assert result.exit_code != 0
 
 
+
+@patch("edinet_mcp.client.EdinetClient")
+@patch("edinet_mcp._screening.screen_companies")
+class TestScreenCommand:
+    def _make_result(self, companies=None, errors=None):
+        results = companies or []
+        return {"results": results, "errors": errors or [], "count": len(results)}
+
+    def _sample_row(self, code="E02144", name="トヨタ自動車株式会社"):
+        return {
+            "edinet_code": code,
+            "company_name": name,
+            "period_end": "2025-03-31",
+            "accounting_standard": "IFRS",
+            "profitability": {
+                "営業利益率": "11.87%",
+                "ROE": "12.50%",
+            },
+            "stability": {
+                "自己資本比率": "41.60%",
+            },
+        }
+
+    def test_screen_table(self, mock_screen, mock_client_cls):
+        mock_client_cls.return_value = _async_client_mock()
+        mock_screen.return_value = self._make_result(
+            companies=[self._sample_row()]
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["screen", "E02144"])
+        assert result.exit_code == 0
+        assert "E02144" in result.output
+        assert "Screening: 1 companies" in result.output
+
+    def test_screen_json(self, mock_screen, mock_client_cls):
+        mock_client_cls.return_value = _async_client_mock()
+        mock_screen.return_value = self._make_result(
+            companies=[self._sample_row()]
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["screen", "E02144", "--format", "json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["count"] == 1
+        assert len(data["results"]) == 1
+
+    def test_screen_multiple_companies(self, mock_screen, mock_client_cls):
+        mock_client_cls.return_value = _async_client_mock()
+        mock_screen.return_value = self._make_result(
+            companies=[
+                self._sample_row("E02144", "トヨタ自動車株式会社"),
+                self._sample_row("E01777", "ソニーグループ株式会社"),
+            ]
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["screen", "E02144", "E01777"])
+        assert result.exit_code == 0
+        assert "Screening: 2 companies" in result.output
+        assert "E02144" in result.output
+        assert "E01777" in result.output
+
+    def test_screen_sort_by(self, mock_screen, mock_client_cls):
+        mock_client_cls.return_value = _async_client_mock()
+        mock_screen.return_value = self._make_result(
+            companies=[self._sample_row()]
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["screen", "E02144", "--sort-by", "ROE"])
+        assert result.exit_code == 0
+        # Verify sort_by was passed through
+        mock_screen.assert_called_once()
+        call_kwargs = mock_screen.call_args
+        assert call_kwargs[1]["sort_by"] == "ROE"
+
+    def test_screen_with_errors(self, mock_screen, mock_client_cls):
+        mock_client_cls.return_value = _async_client_mock()
+        mock_screen.return_value = self._make_result(
+            companies=[self._sample_row()],
+            errors=[{"edinet_code": "E99999", "error": "Not found"}],
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["screen", "E02144", "E99999"])
+        assert result.exit_code == 0
+        assert "E02144" in result.output
+        assert "[ERROR]" in result.output
+
+    def test_screen_all_errors(self, mock_screen, mock_client_cls):
+        mock_client_cls.return_value = _async_client_mock()
+        mock_screen.return_value = self._make_result(
+            errors=[{"edinet_code": "E99999", "error": "Not found"}],
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["screen", "E99999"])
+        assert result.exit_code != 0
+
+    def test_screen_no_args(self, mock_screen, mock_client_cls):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["screen"])
+        assert result.exit_code != 0
+
+    def test_screen_value_error(self, mock_screen, mock_client_cls):
+        mock_client_cls.return_value = _async_client_mock()
+        mock_screen.side_effect = ValueError("Too many companies: 25 (max 20)")
+        runner = CliRunner()
+        codes = [f"E{i:05d}" for i in range(25)]
+        result = runner.invoke(cli, ["screen"] + codes)
+        assert result.exit_code != 0
+        assert "Error:" in result.output
+
+
 @patch("edinet_mcp.client.EdinetClient")
 class TestTestCommand:
     def test_success(self, mock_cls, sample_company):

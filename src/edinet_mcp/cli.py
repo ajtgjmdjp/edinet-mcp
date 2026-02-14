@@ -1,8 +1,9 @@
 """Command-line interface for edinet-mcp.
 
-Provides four commands:
+Provides five commands:
 - ``edinet-mcp search``: Search for companies
 - ``edinet-mcp statements``: Fetch financial statements
+- ``edinet-mcp screen``: Screen and compare financial metrics
 - ``edinet-mcp test``: Test API key and connectivity
 - ``edinet-mcp serve``: Start the MCP server
 """
@@ -144,6 +145,115 @@ def statements(
         # Table format using Polars' built-in pretty printing
         df = data.to_polars()
         click.echo(str(df))
+
+
+
+@cli.command()
+@click.argument("edinet_codes", nargs=-1, required=True)
+@click.option("--sort-by", default=None, help="Metric to sort by (e.g. ROE, 営業利益率).")
+@click.option("--sort-desc/--sort-asc", default=True, help="Sort direction (default: descending).")
+@click.option("--period", "-p", default=None, help="Fiscal year (e.g. 2024).")
+@click.option("--doc-type", "-t", default="annual_report", help="Document type.")
+@click.option(
+    "--format",
+    "-f",
+    "fmt",
+    type=click.Choice(["table", "json"]),
+    default="table",
+    help="Output format.",
+)
+def screen(
+    edinet_codes: tuple[str, ...],
+    sort_by: str | None,
+    sort_desc: bool,
+    period: str | None,
+    doc_type: str,
+    fmt: str,
+) -> None:
+    """Screen and compare financial metrics across multiple companies.
+
+    Examples:
+
+        edinet-mcp screen E02144 E01777 E02529
+
+        edinet-mcp screen E02144 E01777 --sort-by ROE
+
+        edinet-mcp screen E02144 E01777 --format json
+    """
+    from edinet_mcp._screening import screen_companies as _screen_companies
+    from edinet_mcp.client import EdinetClient
+
+    async def _run() -> dict:
+        async with EdinetClient() as client:
+            return await _screen_companies(
+                client,
+                list(edinet_codes),
+                period=period,
+                doc_type=doc_type,
+                sort_by=sort_by,
+                sort_desc=sort_desc,
+            )
+
+    try:
+        result = asyncio.run(_run())
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    if fmt == "json":
+        click.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    # Table output
+    results = result["results"]
+    errors = result["errors"]
+
+    if not results and errors:
+        for err in errors:
+            click.echo(f"  [ERROR] {err['edinet_code']}: {err['error']}", err=True)
+        sys.exit(1)
+
+    if not results:
+        click.echo("No results.")
+        return
+
+    click.echo(f"Screening: {result['count']} companies\n")
+
+    # Collect metric keys from first result for consistent columns
+    metric_categories = ("profitability", "stability", "efficiency", "growth")
+    metric_keys: list[str] = []
+    for cat in metric_categories:
+        cat_data = results[0].get(cat)
+        if isinstance(cat_data, dict):
+            metric_keys.extend(cat_data.keys())
+
+    # Header
+    header = f"{'EDINET':>8}  {'Company':<20}"
+    for key in metric_keys:
+        header += f"  {key:>10}"
+    click.echo(header)
+    click.echo("-" * len(header))
+
+    # Rows
+    for row in results:
+        name = row.get("company_name", "")
+        if len(name) > 20:
+            name = name[:18] + ".."
+        line = f"{row['edinet_code']:>8}  {name:<20}"
+        for key in metric_keys:
+            val = ""
+            for cat in metric_categories:
+                cat_data = row.get(cat)
+                if isinstance(cat_data, dict) and key in cat_data:
+                    val = str(cat_data[key])
+                    break
+            line += f"  {val:>10}"
+        click.echo(line)
+
+    if errors:
+        click.echo("")
+        for err in errors:
+            click.echo(f"  [ERROR] {err['edinet_code']}: {err['error']}", err=True)
 
 
 @cli.command("test")

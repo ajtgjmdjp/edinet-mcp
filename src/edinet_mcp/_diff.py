@@ -6,7 +6,7 @@ calculating changes (増減額) and growth rates (増減率) for each line item.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from loguru import logger
 
@@ -208,8 +208,8 @@ def _calculate_summary(diffs: list[LineItemDiff]) -> dict[str, Any]:
 
     # Top 5 increases and decreases
     valid_diffs = [d for d in diffs if d.get("増減額") is not None]
-    top_increases = [d for d in valid_diffs if d["増減額"] > 0][:5]
-    top_decreases = [d for d in valid_diffs if d["増減額"] < 0][:5]
+    top_increases = [d for d in valid_diffs if cast("int", d["増減額"]) > 0][:5]
+    top_decreases = [d for d in valid_diffs if cast("int", d["増減額"]) < 0][:5]
 
     return {
         "total_items": total_items,

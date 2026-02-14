@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import click
 
@@ -182,7 +182,7 @@ def screen(
     from edinet_mcp._screening import screen_companies as _screen_companies
     from edinet_mcp.client import EdinetClient
 
-    async def _run() -> dict:
+    async def _run() -> dict[str, Any]:
         async with EdinetClient() as client:
             return await _screen_companies(
                 client,

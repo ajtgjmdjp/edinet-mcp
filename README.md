@@ -9,6 +9,8 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![ClawHub](https://img.shields.io/badge/ClawHub-edinet--mcp-orange)](https://clawhub.com/skills/edinet-mcp)
 
+📝 [日本語チュートリアル: Claude に聞くだけで上場企業の決算がわかる (Zenn)](https://zenn.dev/ajtgjmdjp/articles/edinet-mcp-claude-desktop)
+
 Part of the [Japan Finance Data Stack](https://github.com/ajtgjmdjp/awesome-japan-finance-data): **edinet-mcp** (securities filings) | [tdnet-disclosure-mcp](https://github.com/ajtgjmdjp/tdnet-disclosure-mcp) (timely disclosures) | [estat-mcp](https://github.com/ajtgjmdjp/estat-mcp) (government statistics) | [boj-mcp](https://github.com/ajtgjmdjp/boj-mcp) (Bank of Japan) | [japan-news-mcp](https://github.com/ajtgjmdjp/japan-news-mcp) (financial news) | [jquants-mcp](https://github.com/ajtgjmdjp/jquants-mcp) (stock prices)
 
 ## What is this?

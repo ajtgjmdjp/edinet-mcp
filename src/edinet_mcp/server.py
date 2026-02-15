@@ -22,12 +22,25 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
+from pydantic import BeforeValidator
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from edinet_mcp.models import StatementType
 
 from fastmcp import FastMCP
+
+
+def _coerce_str(v: Any) -> str | None:
+    """Coerce int to str for period parameters (MCP clients may send int)."""
+    if v is None:
+        return None
+    return str(v)
+
+
+# Period type that accepts both str and int from MCP clients
+CoercedStr = Annotated[str | None, BeforeValidator(_coerce_str)]
 from pydantic import Field
 
 from edinet_mcp._diff import diff_statements as _diff_statements
@@ -153,7 +166,7 @@ async def get_financial_statements(
         Field(description="企業のEDINETコード (例: 'E02144')"),
     ],
     period: Annotated[
-        str | None,
+        CoercedStr,
         Field(
             description=(
                 "書類が提出された年 (例: '2024')。"
@@ -197,7 +210,7 @@ async def get_financial_metrics(
         Field(description="企業のEDINETコード (例: 'E02144')"),
     ],
     period: Annotated[
-        str | None,
+        CoercedStr,
         Field(
             description=(
                 "書類が提出された年 (例: '2024')。"
@@ -246,7 +259,7 @@ async def compare_financial_periods(
         Field(description="企業のEDINETコード (例: 'E02144')"),
     ],
     period: Annotated[
-        str | None,
+        CoercedStr,
         Field(
             description=(
                 "書類が提出された年 (例: '2024')。"
@@ -339,7 +352,7 @@ async def screen_companies(
         ),
     ],
     period: Annotated[
-        str | None,
+        CoercedStr,
         Field(description=("書類が提出された年 (例: '2025')。省略時は最新。")),
     ] = None,
     doc_type: Annotated[
@@ -389,11 +402,11 @@ async def diff_financial_statements(
         Field(description="企業のEDINETコード (例: 'E02144')"),
     ],
     period1: Annotated[
-        str,
+        Annotated[str, BeforeValidator(_coerce_str)],
         Field(description="比較元の期間 (例: '2024')"),
     ],
     period2: Annotated[
-        str,
+        Annotated[str, BeforeValidator(_coerce_str)],
         Field(description="比較先の期間 (例: '2025')"),
     ],
     doc_type: Annotated[

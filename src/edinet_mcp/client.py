@@ -424,7 +424,7 @@ class EdinetClient:
             filing = await self._find_filing_for_period(edinet_code, int(period), doc_type)
         else:
             end = datetime.date.today()
-            start = end - datetime.timedelta(days=365)
+            start = end - datetime.timedelta(days=730)
             filings = await self.get_filings(
                 start_date=start,
                 end_date=end,

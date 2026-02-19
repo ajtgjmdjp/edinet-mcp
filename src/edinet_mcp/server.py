@@ -22,7 +22,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
-from pydantic import BeforeValidator
+from pydantic import BeforeValidator, Field
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -30,6 +30,12 @@ if TYPE_CHECKING:
     from edinet_mcp.models import StatementType
 
 from fastmcp import FastMCP
+
+from edinet_mcp._diff import diff_statements as _diff_statements
+from edinet_mcp._metrics import calculate_metrics, compare_periods
+from edinet_mcp._normalize import get_taxonomy_labels
+from edinet_mcp._screening import screen_companies as _screen_companies
+from edinet_mcp.client import EdinetClient
 
 
 def _coerce_str(v: Any) -> str | None:
@@ -41,13 +47,6 @@ def _coerce_str(v: Any) -> str | None:
 
 # Period type that accepts both str and int from MCP clients
 CoercedStr = Annotated[str | None, BeforeValidator(_coerce_str)]
-from pydantic import Field
-
-from edinet_mcp._diff import diff_statements as _diff_statements
-from edinet_mcp._metrics import calculate_metrics, compare_periods
-from edinet_mcp._normalize import get_taxonomy_labels
-from edinet_mcp._screening import screen_companies as _screen_companies
-from edinet_mcp.client import EdinetClient
 
 # Lazily initialized client with lock for concurrent-safe access
 _client: EdinetClient | None = None

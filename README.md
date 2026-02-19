@@ -356,7 +356,7 @@ EDINET data is provided under the [Public Data License 1.0](https://www.digital.
 - [tdnet-disclosure-mcp](https://github.com/ajtgjmdjp/tdnet-disclosure-mcp) — TDNET timely disclosures (適時開示)
 - [estat-mcp](https://github.com/ajtgjmdjp/estat-mcp) — Government statistics (e-Stat)
 - [boj-mcp](https://github.com/ajtgjmdjp/boj-mcp) — Bank of Japan statistics
-- [stockprice-mcp](https://github.com/ajtgjmdjp/stockprice-mcp) — Stock prices & FX rates (Yahoo Finance)
+- [stockprice-mcp](https://github.com/ajtgjmdjp/stockprice-mcp) — Stock prices & FX rates (yfinance)
 - [jfinqa](https://github.com/ajtgjmdjp/jfinqa) — Japanese financial QA benchmark
 
 **Community**:

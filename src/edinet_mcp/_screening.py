@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
 from loguru import logger
 
 from edinet_mcp._metrics import calculate_metrics
@@ -60,23 +61,9 @@ async def screen_companies(
 
     for code in edinet_codes:
         try:
-            stmt = await client.get_financial_statements(
-                edinet_code=code,
-                doc_type=doc_type,
-                period=period,
-            )
-            metrics = calculate_metrics(stmt)
-            row: dict[str, Any] = {
-                "edinet_code": code,
-                "company_name": stmt.filing.company_name,
-                "period_end": (
-                    stmt.filing.period_end.isoformat() if stmt.filing.period_end else None
-                ),
-                "accounting_standard": stmt.accounting_standard.value,
-            }
-            row.update(metrics)
+            row = await _fetch_company_metrics(client, code, doc_type, period)
             results.append(row)
-        except Exception as e:
+        except (httpx.HTTPError, ValueError, KeyError) as e:
             logger.warning(f"Screening failed for {code}: {e}")
             errors.append({"edinet_code": code, "error": str(e)})
 
@@ -85,6 +72,29 @@ async def screen_companies(
         results = _sort_by_metric(results, sort_by, sort_desc)
 
     return {"results": results, "errors": errors, "count": len(results)}
+
+
+async def _fetch_company_metrics(
+    client: EdinetClient,
+    code: str,
+    doc_type: str,
+    period: str | None,
+) -> dict[str, Any]:
+    """Fetch financial statements for one company and return a metrics row."""
+    stmt = await client.get_financial_statements(
+        edinet_code=code,
+        doc_type=doc_type,
+        period=period,
+    )
+    metrics = calculate_metrics(stmt)
+    row: dict[str, Any] = {
+        "edinet_code": code,
+        "company_name": stmt.filing.company_name,
+        "period_end": (stmt.filing.period_end.isoformat() if stmt.filing.period_end else None),
+        "accounting_standard": stmt.accounting_standard.value,
+    }
+    row.update(metrics)
+    return row
 
 
 def _sort_by_metric(
@@ -117,7 +127,7 @@ def _sort_by_metric(
                         return float(val.rstrip("%"))
                     except ValueError:
                         return None
-                if isinstance(val, (int, float)):
+                if isinstance(val, int | float):
                     return float(val)
                 return None
         return None

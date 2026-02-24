@@ -89,6 +89,24 @@ def _is_valid_zip(path: Path) -> bool:
         return False
 
 
+def _validate_zip_response(data: bytes, doc_id: str) -> None:
+    """Raise :class:`EdinetAPIError` if *data* is not a valid ZIP payload.
+
+    EDINET may return HTTP 200 with a JSON error body instead of a ZIP file.
+    This helper detects that case and includes the server message in the
+    exception when available.
+    """
+    if data[:2] == _ZIP_MAGIC:
+        return
+    msg = f"EDINET returned non-ZIP response for {doc_id}"
+    try:
+        body = json.loads(data)
+        msg = f"EDINET API error for {doc_id}: {body.get('message', body)}"
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        pass
+    raise EdinetAPIError(msg)
+
+
 def _validate_edinet_code(edinet_code: str) -> None:
     """Validate EDINET company code format.
 
@@ -365,16 +383,24 @@ class EdinetClient:
         params = self._request_params({"type": retrieve_type})
         data = await self._get_bytes(url, params)
 
-        if data[:2] != b"PK":
-            # EDINET may return HTTP 200 with a JSON error body
-            msg = f"EDINET returned non-ZIP response for {doc_id}"
-            try:
-                body = json.loads(data)
-                msg = f"EDINET API error for {doc_id}: {body.get('message', body)}"
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                pass
-            raise EdinetAPIError(msg)
+        _validate_zip_response(data, doc_id)
 
+        return self._save_downloaded_zip(
+            data,
+            doc_id,
+            cache_params,
+            output_dir=output_dir,
+        )
+
+    def _save_downloaded_zip(
+        self,
+        data: bytes,
+        doc_id: str,
+        cache_params: dict[str, Any],
+        *,
+        output_dir: str | Path | None = None,
+    ) -> Path:
+        """Save downloaded ZIP data to *output_dir* or the file cache."""
         if output_dir:
             out = Path(output_dir)
             out.mkdir(parents=True, exist_ok=True)
@@ -537,7 +563,7 @@ class EdinetClient:
                     period=period,
                 )
                 results.append((code, stmt, None))
-            except Exception as e:
+            except (ValueError, EdinetAPIError, httpx.HTTPError) as e:
                 logger.warning(f"Batch fetch failed for {code}: {e}")
                 results.append((code, None, str(e)))
         return results

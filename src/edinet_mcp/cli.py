@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import click
 
 if TYPE_CHECKING:
+    from edinet_mcp._diff import DiffResult
     from edinet_mcp.models import Company, FinancialStatement
 from loguru import logger
 
@@ -204,22 +205,11 @@ def screen(
         click.echo(json.dumps(result, ensure_ascii=False, indent=2))
         return
 
-    # Table output
-    results = result["results"]
-    errors = result["errors"]
+    _display_screen_results(result)
 
-    if not results and errors:
-        for err in errors:
-            click.echo(f"  [ERROR] {err['edinet_code']}: {err['error']}", err=True)
-        sys.exit(1)
 
-    if not results:
-        click.echo("No results.")
-        return
-
-    click.echo(f"Screening: {result['count']} companies\n")
-
-    # Collect metric keys from first result for consistent columns
+def _format_screen_table(results: list[dict[str, Any]]) -> list[str]:
+    """Build table lines (header + rows) for screening results."""
     metric_categories = ("profitability", "stability", "efficiency", "growth")
     metric_keys: list[str] = []
     for cat in metric_categories:
@@ -227,14 +217,11 @@ def screen(
         if isinstance(cat_data, dict):
             metric_keys.extend(cat_data.keys())
 
-    # Header
     header = f"{'EDINET':>8}  {'Company':<20}"
     for key in metric_keys:
         header += f"  {key:>10}"
-    click.echo(header)
-    click.echo("-" * len(header))
 
-    # Rows
+    lines = [header, "-" * len(header)]
     for row in results:
         name = row.get("company_name", "")
         if len(name) > 20:
@@ -248,6 +235,26 @@ def screen(
                     val = str(cat_data[key])
                     break
             line += f"  {val:>10}"
+        lines.append(line)
+    return lines
+
+
+def _display_screen_results(result: dict[str, Any]) -> None:
+    """Format and display screening results as a table."""
+    results = result["results"]
+    errors = result["errors"]
+
+    if not results and errors:
+        for err in errors:
+            click.echo(f"  [ERROR] {err['edinet_code']}: {err['error']}", err=True)
+        sys.exit(1)
+
+    if not results:
+        click.echo("No results.")
+        return
+
+    click.echo(f"Screening: {result['count']} companies\n")
+    for line in _format_screen_table(results):
         click.echo(line)
 
     if errors:
@@ -256,60 +263,8 @@ def screen(
             click.echo(f"  [ERROR] {err['edinet_code']}: {err['error']}", err=True)
 
 
-@cli.command("diff")
-@click.option("--edinet-code", "-c", required=True, help="EDINET code (e.g. E02144).")
-@click.option("--period1", "-p1", required=True, help="First period year (e.g. 2023).")
-@click.option("--period2", "-p2", required=True, help="Second period year (e.g. 2024).")
-@click.option("--doc-type", "-t", default="annual_report", help="Document type.")
-@click.option(
-    "--format",
-    "-f",
-    "fmt",
-    type=click.Choice(["table", "json"]),
-    default="table",
-    help="Output format.",
-)
-def diff(
-    edinet_code: str,
-    period1: str,
-    period2: str,
-    doc_type: str,
-    fmt: str,
-) -> None:
-    """Compare financial statements across two periods (xbrl-diff).
-
-    Shows changes (増減額) and growth rates (増減率) for each line item.
-
-    Examples:
-
-        edinet-mcp diff -c E02144 -p1 2023 -p2 2024
-
-        edinet-mcp diff -c E02144 -p1 2023 -p2 2024 --format json
-    """
-    from edinet_mcp._diff import DiffResult, diff_statements
-    from edinet_mcp.client import EdinetClient
-
-    async def _run() -> DiffResult:
-        async with EdinetClient() as client:
-            return await diff_statements(
-                client,
-                edinet_code=edinet_code,
-                period1=period1,
-                period2=period2,
-                doc_type=doc_type,
-            )
-
-    try:
-        result = asyncio.run(_run())
-    except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
-
-    if fmt == "json":
-        click.echo(json.dumps(result, ensure_ascii=False, indent=2))
-        return
-
-    # Table output
+def _display_diff_table(result: DiffResult) -> None:
+    """Render diff results as a formatted table."""
     click.echo(
         f"Diff: {result['company_name']} ({result['edinet_code']})\n"
         f"Periods: {result['period1']} → {result['period2']} | "
@@ -358,24 +313,66 @@ def diff(
     )
 
 
-@cli.command("test")
-def test_connection() -> None:
-    """Test API key and connectivity to EDINET.
+@cli.command("diff")
+@click.option("--edinet-code", "-c", required=True, help="EDINET code (e.g. E02144).")
+@click.option("--period1", "-p1", required=True, help="First period year (e.g. 2023).")
+@click.option("--period2", "-p2", required=True, help="Second period year (e.g. 2024).")
+@click.option("--doc-type", "-t", default="annual_report", help="Document type.")
+@click.option(
+    "--format",
+    "-f",
+    "fmt",
+    type=click.Choice(["table", "json"]),
+    default="table",
+    help="Output format.",
+)
+def diff(
+    edinet_code: str,
+    period1: str,
+    period2: str,
+    doc_type: str,
+    fmt: str,
+) -> None:
+    """Compare financial statements across two periods (xbrl-diff).
 
-    Verifies that your EDINET_API_KEY is set and working by making
-    a lightweight API call. Also checks cache directory status.
+    Shows changes (増減額) and growth rates (増減率) for each line item.
 
     Examples:
 
-        edinet-mcp test
+        edinet-mcp diff -c E02144 -p1 2023 -p2 2024
+
+        edinet-mcp diff -c E02144 -p1 2023 -p2 2024 --format json
     """
+    from edinet_mcp._diff import diff_statements
+    from edinet_mcp.client import EdinetClient
+
+    async def _run():
+        async with EdinetClient() as client:
+            return await diff_statements(
+                client,
+                edinet_code=edinet_code,
+                period1=period1,
+                period2=period2,
+                doc_type=doc_type,
+            )
+
+    try:
+        result = asyncio.run(_run())
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    if fmt == "json":
+        click.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    _display_diff_table(result)
+
+
+def _check_api_key() -> bool:
+    """Check that EDINET_API_KEY is set. Returns True on success."""
     import os
 
-    from edinet_mcp import __version__
-
-    click.echo(f"edinet-mcp v{__version__}\n")
-
-    # 1. Check API key
     api_key = os.environ.get("EDINET_API_KEY", "")
     if not api_key:
         click.echo("[FAIL] EDINET_API_KEY is not set", err=True)
@@ -383,10 +380,13 @@ def test_connection() -> None:
             "  Set it with: export EDINET_API_KEY=your_key_here",
             err=True,
         )
-        sys.exit(1)
+        return False
     click.echo(f"[OK]   EDINET_API_KEY is set ({api_key[:4]}...{api_key[-2:]})")
+    return True
 
-    # 2. Check cache directory
+
+def _check_cache_status() -> bool:
+    """Report cache directory status. Always returns True."""
     from edinet_mcp._config import get_settings
 
     settings = get_settings()
@@ -398,8 +398,11 @@ def test_connection() -> None:
         click.echo(f"[OK]   Cache: {cache_dir} ({len(cache_files)} files, {cache_mb:.1f} MB)")
     else:
         click.echo(f"[INFO] Cache: {cache_dir} (not created yet)")
+    return True
 
-    # 3. Test API connectivity
+
+def _test_api_connectivity() -> bool:
+    """Test API connectivity with a lightweight query. Returns True on success."""
     click.echo("\nTesting API connectivity...")
 
     from edinet_mcp.client import EdinetClient
@@ -414,8 +417,31 @@ def test_connection() -> None:
     try:
         result = asyncio.run(_test())
         click.echo(f"[OK]   {result}")
-    except Exception as e:
+    except Exception as e:  # Broad catch: top-level CLI handler for any runtime failure
         click.echo(f"[FAIL] API error: {e}", err=True)
+        return False
+    return True
+
+
+@cli.command("test")
+def test_connection() -> None:
+    """Test API key and connectivity to EDINET.
+
+    Verifies that your EDINET_API_KEY is set and working by making
+    a lightweight API call. Also checks cache directory status.
+
+    Examples:
+
+        edinet-mcp test
+    """
+    from edinet_mcp import __version__
+
+    click.echo(f"edinet-mcp v{__version__}\n")
+
+    if not _check_api_key():
+        sys.exit(1)
+    _check_cache_status()
+    if not _test_api_connectivity():
         sys.exit(1)
 
     click.echo("\nAll checks passed.")

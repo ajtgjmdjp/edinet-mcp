@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, TypedDict, cast
 
+import httpx
 from loguru import logger
+
+from edinet_mcp.client import EdinetAPIError
 
 if TYPE_CHECKING:
     from edinet_mcp.client import EdinetClient
@@ -36,6 +39,71 @@ class DiffResult(TypedDict):
     accounting_standard: str
     diffs: list[LineItemDiff]
     summary: dict[str, Any]
+
+
+async def _fetch_period_statements(
+    client: EdinetClient,
+    edinet_code: str,
+    period1: str,
+    period2: str,
+    doc_type: str,
+) -> tuple[Any, Any]:
+    """Fetch financial statements for two periods.
+
+    Returns:
+        Tuple of (stmt1, stmt2).
+
+    Raises:
+        ValueError: If either period's statement cannot be fetched.
+    """
+    try:
+        stmt1 = await client.get_financial_statements(
+            edinet_code=edinet_code,
+            doc_type=doc_type,
+            period=period1,
+        )
+    except (ValueError, EdinetAPIError, httpx.HTTPError) as e:
+        raise ValueError(f"Failed to fetch {period1} statement: {e}") from e
+
+    try:
+        stmt2 = await client.get_financial_statements(
+            edinet_code=edinet_code,
+            doc_type=doc_type,
+            period=period2,
+        )
+    except (ValueError, EdinetAPIError, httpx.HTTPError) as e:
+        raise ValueError(f"Failed to fetch {period2} statement: {e}") from e
+
+    return stmt1, stmt2
+
+
+def _compute_changes(
+    stmt1: Any,
+    stmt2: Any,
+) -> tuple[list[LineItemDiff], dict[str, Any]]:
+    """Compare all statement sections and compute diffs with summary.
+
+    Returns:
+        Tuple of (sorted diffs list, summary dict).
+    """
+    diffs: list[LineItemDiff] = []
+
+    for section, label in (
+        ("income_statement", "income_statement"),
+        ("balance_sheet", "balance_sheet"),
+        ("cash_flow_statement", "cash_flow_statement"),
+    ):
+        diffs.extend(
+            _compare_statement(
+                getattr(stmt1, section),
+                getattr(stmt2, section),
+                label,
+            )
+        )
+
+    diffs.sort(key=lambda x: abs(x.get("増減額") or 0), reverse=True)
+    summary = _calculate_summary(diffs)
+    return diffs, summary
 
 
 async def diff_statements(
@@ -66,60 +134,14 @@ async def diff_statements(
     """
     logger.info(f"Fetching statements for {edinet_code}: {period1} vs {period2}")
 
-    # Fetch both statements
-    try:
-        stmt1 = await client.get_financial_statements(
-            edinet_code=edinet_code,
-            doc_type=doc_type,
-            period=period1,
-        )
-    except Exception as e:
-        raise ValueError(f"Failed to fetch {period1} statement: {e}") from e
-
-    try:
-        stmt2 = await client.get_financial_statements(
-            edinet_code=edinet_code,
-            doc_type=doc_type,
-            period=period2,
-        )
-    except Exception as e:
-        raise ValueError(f"Failed to fetch {period2} statement: {e}") from e
-
-    # Calculate diffs
-    diffs: list[LineItemDiff] = []
-
-    # Compare income statements
-    diffs.extend(
-        _compare_statement(
-            stmt1.income_statement,
-            stmt2.income_statement,
-            "income_statement",
-        )
+    stmt1, stmt2 = await _fetch_period_statements(
+        client,
+        edinet_code,
+        period1,
+        period2,
+        doc_type,
     )
-
-    # Compare balance sheets
-    diffs.extend(
-        _compare_statement(
-            stmt1.balance_sheet,
-            stmt2.balance_sheet,
-            "balance_sheet",
-        )
-    )
-
-    # Compare cash flow statements
-    diffs.extend(
-        _compare_statement(
-            stmt1.cash_flow_statement,
-            stmt2.cash_flow_statement,
-            "cash_flow_statement",
-        )
-    )
-
-    # Sort diffs by absolute change magnitude
-    diffs.sort(key=lambda x: abs(x.get("増減額") or 0), reverse=True)
-
-    # Calculate summary
-    summary = _calculate_summary(diffs)
+    diffs, summary = _compute_changes(stmt1, stmt2)
 
     return DiffResult(
         edinet_code=edinet_code,

@@ -6,6 +6,7 @@ year-over-year comparisons from normalized :class:`FinancialStatement` data.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 if TYPE_CHECKING:
@@ -133,6 +134,199 @@ def _pct(val: float | None) -> str | None:
     return f"{val * 100:.2f}%"
 
 
+@dataclass
+class _StatementValues:
+    """Extracted financial values from a FinancialStatement."""
+
+    # Income statement (current period)
+    revenue: float | None = None
+    gross_profit: float | None = None
+    operating_income: float | None = None
+    ordinary_income: float | None = None
+    net_income: float | None = None
+    net_income_parent: float | None = None
+    cogs: float | None = None
+    # Balance sheet
+    total_assets: float | None = None
+    total_liabilities: float | None = None
+    net_assets: float | None = None
+    current_assets: float | None = None
+    current_liabilities: float | None = None
+    shareholders_equity: float | None = None
+    accounts_receivable: float | None = None
+    inventory: float | None = None
+    tangible_fixed_assets: float | None = None
+    fixed_assets: float | None = None
+    fixed_liabilities: float | None = None
+    # Cash flow
+    operating_cf: float | None = None
+    investing_cf: float | None = None
+    financing_cf: float | None = None
+    # Prior period
+    revenue_prev: float | None = None
+    operating_income_prev: float | None = None
+    total_assets_prev: float | None = None
+    # Derived
+    ni_for_roe: float | None = None
+    equity_for_roe: float | None = None
+
+
+def _extract_values(stmt: FinancialStatement) -> _StatementValues:
+    """Extract all relevant numeric values from a FinancialStatement."""
+    v = _StatementValues()
+    # Income statement
+    v.revenue = _get_val(stmt, "income_statement", "売上高")
+    v.gross_profit = _get_val(stmt, "income_statement", "売上総利益")
+    v.operating_income = _get_val(stmt, "income_statement", "営業利益")
+    v.ordinary_income = _get_val(stmt, "income_statement", "経常利益")
+    v.net_income = _get_val(stmt, "income_statement", "当期純利益")
+    v.net_income_parent = _get_val(stmt, "income_statement", "親会社株主に帰属する当期純利益")
+    v.cogs = _get_val(stmt, "income_statement", "売上原価")
+    # Balance sheet
+    v.total_assets = _get_val(stmt, "balance_sheet", "資産合計")
+    v.total_liabilities = _get_val(stmt, "balance_sheet", "負債合計")
+    v.net_assets = _get_val(stmt, "balance_sheet", "純資産合計")
+    v.current_assets = _get_val(stmt, "balance_sheet", "流動資産")
+    v.current_liabilities = _get_val(stmt, "balance_sheet", "流動負債")
+    v.shareholders_equity = _get_val(stmt, "balance_sheet", "株主資本")
+    v.accounts_receivable = _get_val(stmt, "balance_sheet", "売掛金")
+    v.inventory = _get_val(stmt, "balance_sheet", "棚卸資産")
+    v.tangible_fixed_assets = _get_val(stmt, "balance_sheet", "有形固定資産")
+    v.fixed_assets = _get_val(stmt, "balance_sheet", "固定資産")
+    v.fixed_liabilities = _get_val(stmt, "balance_sheet", "固定負債")
+    # Cash flow
+    v.operating_cf = _get_val(stmt, "cash_flow_statement", "営業活動によるキャッシュ・フロー")
+    v.investing_cf = _get_val(stmt, "cash_flow_statement", "投資活動によるキャッシュ・フロー")
+    v.financing_cf = _get_val(stmt, "cash_flow_statement", "財務活動によるキャッシュ・フロー")
+    # Prior period
+    v.revenue_prev = _get_val(stmt, "income_statement", "売上高", "前期")
+    v.operating_income_prev = _get_val(stmt, "income_statement", "営業利益", "前期")
+    v.total_assets_prev = _get_val(stmt, "balance_sheet", "資産合計", "前期")
+    # Derived
+    v.ni_for_roe = v.net_income_parent or v.net_income
+    v.equity_for_roe = v.shareholders_equity or v.net_assets
+    return v
+
+
+def _calc_profitability(v: _StatementValues) -> dict[str, str]:
+    """Calculate profitability ratios and return as a dict of pct strings."""
+    profitability: dict[str, str] = {}
+    if (p := _pct(_safe_div(v.gross_profit, v.revenue))) is not None:
+        profitability["売上総利益率"] = p
+    if (p := _pct(_safe_div(v.operating_income, v.revenue))) is not None:
+        profitability["営業利益率"] = p
+    if (p := _pct(_safe_div(v.ordinary_income, v.revenue))) is not None:
+        profitability["経常利益率"] = p
+    if (p := _pct(_safe_div(v.ni_for_roe, v.revenue))) is not None:
+        profitability["当期純利益率"] = p
+    if (p := _pct(_safe_div(v.ordinary_income or v.operating_income, v.total_assets))) is not None:
+        profitability["ROA"] = p
+    if (p := _pct(_safe_div(v.ni_for_roe, v.equity_for_roe))) is not None:
+        profitability["ROE"] = p
+    return profitability
+
+
+def _calc_stability(v: _StatementValues) -> dict[str, str]:
+    """Calculate financial stability ratios and return as a dict of pct strings."""
+    stability: dict[str, str] = {}
+    if (p := _pct(_safe_div(v.equity_for_roe, v.total_assets))) is not None:
+        stability["自己資本比率"] = p
+    if (p := _pct(_safe_div(v.current_assets, v.current_liabilities))) is not None:
+        stability["流動比率"] = p
+    # Quick ratio: (Current Assets - Inventory) / Current Liabilities
+    if (
+        v.current_assets is not None
+        and v.inventory is not None
+        and v.current_liabilities is not None
+    ):
+        quick_assets = v.current_assets - v.inventory
+        if (p := _pct(_safe_div(quick_assets, v.current_liabilities))) is not None:
+            stability["当座比率"] = p
+    if (p := _pct(_safe_div(v.total_liabilities, v.equity_for_roe))) is not None:
+        stability["負債比率"] = p
+    # Fixed ratio: Fixed Assets / Net Assets
+    if (p := _pct(_safe_div(v.fixed_assets, v.equity_for_roe))) is not None:
+        stability["固定比率"] = p
+    # Fixed long-term suitability ratio: Fixed Assets / (Net Assets + Fixed Liabilities)
+    if v.fixed_assets is not None and v.equity_for_roe is not None:
+        long_term_capital = v.equity_for_roe + (v.fixed_liabilities or 0)
+        if (p := _pct(_safe_div(v.fixed_assets, long_term_capital))) is not None:
+            stability["固定長期適合率"] = p
+    return stability
+
+
+def _calc_efficiency(v: _StatementValues) -> dict[str, float]:
+    """Calculate efficiency (turnover) ratios and return as a dict of floats."""
+    efficiency: dict[str, float] = {}
+    if (ratio := _safe_div(v.revenue, v.total_assets)) is not None:
+        efficiency["総資産回転率"] = round(ratio, 2)
+    if (ratio := _safe_div(v.revenue, v.fixed_assets)) is not None:
+        efficiency["固定資産回転率"] = round(ratio, 2)
+    if (ratio := _safe_div(v.revenue, v.accounts_receivable)) is not None:
+        efficiency["売上債権回転率"] = round(ratio, 2)
+    if (ratio := _safe_div(v.cogs, v.inventory)) is not None:
+        efficiency["棚卸資産回転率"] = round(ratio, 2)
+    if (ratio := _safe_div(v.revenue, v.tangible_fixed_assets)) is not None:
+        efficiency["有形固定資産回転率"] = round(ratio, 2)
+    return efficiency
+
+
+def _calc_growth(v: _StatementValues) -> dict[str, str]:
+    """Calculate YoY growth rates and return as a dict of pct strings."""
+    growth: dict[str, str] = {}
+    if v.revenue is not None and v.revenue_prev is not None and v.revenue_prev != 0:
+        rate = (v.revenue - v.revenue_prev) / v.revenue_prev
+        growth["売上高成長率"] = _pct(rate) or ""
+    if (
+        v.operating_income is not None
+        and v.operating_income_prev is not None
+        and v.operating_income_prev != 0
+    ):
+        rate = (v.operating_income - v.operating_income_prev) / v.operating_income_prev
+        growth["営業利益成長率"] = _pct(rate) or ""
+    if v.total_assets is not None and v.total_assets_prev is not None and v.total_assets_prev != 0:
+        rate = (v.total_assets - v.total_assets_prev) / v.total_assets_prev
+        growth["総資産成長率"] = _pct(rate) or ""
+    return growth
+
+
+def _calc_cash_flow(v: _StatementValues) -> dict[str, str | float]:
+    """Calculate cash flow metrics and return as a dict."""
+    if v.operating_cf is None and v.investing_cf is None and v.financing_cf is None:
+        return {}
+    cf: dict[str, str | float] = {}
+    if v.operating_cf is not None:
+        cf["営業CF"] = v.operating_cf
+        if (p := _pct(_safe_div(v.operating_cf, v.revenue))) is not None:
+            cf["営業CFマージン"] = p
+    if v.investing_cf is not None:
+        cf["投資CF"] = v.investing_cf
+    if v.financing_cf is not None:
+        cf["財務CF"] = v.financing_cf
+    if v.operating_cf is not None and v.investing_cf is not None:
+        free_cf = v.operating_cf + v.investing_cf
+        cf["フリーCF"] = free_cf
+        if (p := _pct(_safe_div(free_cf, v.revenue))) is not None:
+            cf["FCFマージン"] = p
+    return cf
+
+
+def _build_raw_values(v: _StatementValues) -> dict[str, float]:
+    """Build a dict of raw financial values, omitting None entries."""
+    raw: dict[str, float] = {}
+    for label, val in [
+        ("売上高", v.revenue),
+        ("営業利益", v.operating_income),
+        ("経常利益", v.ordinary_income),
+        ("当期純利益", v.ni_for_roe),
+        ("総資産", v.total_assets),
+        ("純資産", v.equity_for_roe),
+    ]:
+        if val is not None:
+            raw[label] = val
+    return raw
+
+
 def calculate_metrics(stmt: FinancialStatement) -> FinancialMetrics:
     """Calculate key financial metrics from normalized statements.
 
@@ -160,149 +354,20 @@ def calculate_metrics(stmt: FinancialStatement) -> FinancialMetrics:
             }
         }
     """
-    # Extract key values (current period)
-    revenue = _get_val(stmt, "income_statement", "売上高")
-    gross_profit = _get_val(stmt, "income_statement", "売上総利益")
-    operating_income = _get_val(stmt, "income_statement", "営業利益")
-    ordinary_income = _get_val(stmt, "income_statement", "経常利益")
-    net_income = _get_val(stmt, "income_statement", "当期純利益")
-    net_income_parent = _get_val(stmt, "income_statement", "親会社株主に帰属する当期純利益")
-    cogs = _get_val(stmt, "income_statement", "売上原価")
-
-    total_assets = _get_val(stmt, "balance_sheet", "資産合計")
-    total_liabilities = _get_val(stmt, "balance_sheet", "負債合計")
-    net_assets = _get_val(stmt, "balance_sheet", "純資産合計")
-    current_assets = _get_val(stmt, "balance_sheet", "流動資産")
-    current_liabilities = _get_val(stmt, "balance_sheet", "流動負債")
-    shareholders_equity = _get_val(stmt, "balance_sheet", "株主資本")
-    accounts_receivable = _get_val(stmt, "balance_sheet", "売掛金")
-    inventory = _get_val(stmt, "balance_sheet", "棚卸資産")
-    tangible_fixed_assets = _get_val(stmt, "balance_sheet", "有形固定資産")
-    fixed_assets = _get_val(stmt, "balance_sheet", "固定資産")
-    fixed_liabilities = _get_val(stmt, "balance_sheet", "固定負債")
-
-    operating_cf = _get_val(stmt, "cash_flow_statement", "営業活動によるキャッシュ・フロー")
-    investing_cf = _get_val(stmt, "cash_flow_statement", "投資活動によるキャッシュ・フロー")
-    financing_cf = _get_val(stmt, "cash_flow_statement", "財務活動によるキャッシュ・フロー")
-
-    # Extract prior period values for growth metrics
-    revenue_prev = _get_val(stmt, "income_statement", "売上高", "前期")
-    operating_income_prev = _get_val(stmt, "income_statement", "営業利益", "前期")
-    total_assets_prev = _get_val(stmt, "balance_sheet", "資産合計", "前期")
-
-    # Prefer parent net income for ROE if available
-    ni_for_roe = net_income_parent or net_income
-    equity_for_roe = shareholders_equity or net_assets
-
+    v = _extract_values(stmt)
     result: dict[str, Any] = {}
 
-    # --- Profitability ---
-    profitability: dict[str, str] = {}
-    if (v := _pct(_safe_div(gross_profit, revenue))) is not None:
-        profitability["売上総利益率"] = v
-    if (v := _pct(_safe_div(operating_income, revenue))) is not None:
-        profitability["営業利益率"] = v
-    if (v := _pct(_safe_div(ordinary_income, revenue))) is not None:
-        profitability["経常利益率"] = v
-    if (v := _pct(_safe_div(ni_for_roe, revenue))) is not None:
-        profitability["当期純利益率"] = v
-    if (v := _pct(_safe_div(ordinary_income or operating_income, total_assets))) is not None:
-        profitability["ROA"] = v
-    if (v := _pct(_safe_div(ni_for_roe, equity_for_roe))) is not None:
-        profitability["ROE"] = v
-    if profitability:
-        result["profitability"] = profitability
-
-    # --- Stability ---
-    stability: dict[str, str] = {}
-    if (v := _pct(_safe_div(equity_for_roe, total_assets))) is not None:
-        stability["自己資本比率"] = v
-    if (v := _pct(_safe_div(current_assets, current_liabilities))) is not None:
-        stability["流動比率"] = v
-    # Quick ratio: (Current Assets - Inventory) / Current Liabilities
-    if current_assets is not None and inventory is not None and current_liabilities is not None:
-        quick_assets = current_assets - inventory
-        if (v := _pct(_safe_div(quick_assets, current_liabilities))) is not None:
-            stability["当座比率"] = v
-    if (v := _pct(_safe_div(total_liabilities, equity_for_roe))) is not None:
-        stability["負債比率"] = v
-    # Fixed ratio: Fixed Assets / Net Assets
-    if (v := _pct(_safe_div(fixed_assets, equity_for_roe))) is not None:
-        stability["固定比率"] = v
-    # Fixed long-term suitability ratio: Fixed Assets / (Net Assets + Fixed Liabilities)
-    if fixed_assets is not None and equity_for_roe is not None:
-        long_term_capital = equity_for_roe + (fixed_liabilities or 0)
-        if (v := _pct(_safe_div(fixed_assets, long_term_capital))) is not None:
-            stability["固定長期適合率"] = v
-    if stability:
-        result["stability"] = stability
-
-    # --- Efficiency (Turnover Ratios) ---
-    efficiency: dict[str, float] = {}
-    if (ratio := _safe_div(revenue, total_assets)) is not None:
-        efficiency["総資産回転率"] = round(ratio, 2)
-    if (ratio := _safe_div(revenue, fixed_assets)) is not None:
-        efficiency["固定資産回転率"] = round(ratio, 2)
-    if (ratio := _safe_div(revenue, accounts_receivable)) is not None:
-        efficiency["売上債権回転率"] = round(ratio, 2)
-    if (ratio := _safe_div(cogs, inventory)) is not None:
-        efficiency["棚卸資産回転率"] = round(ratio, 2)
-    if (ratio := _safe_div(revenue, tangible_fixed_assets)) is not None:
-        efficiency["有形固定資産回転率"] = round(ratio, 2)
-    if efficiency:
-        result["efficiency"] = efficiency
-
-    # --- Growth (YoY Growth Rates) ---
-    growth: dict[str, str] = {}
-    if revenue is not None and revenue_prev is not None and revenue_prev != 0:
-        growth_rate = (revenue - revenue_prev) / revenue_prev
-        growth["売上高成長率"] = _pct(growth_rate) or ""
-    if (
-        operating_income is not None
-        and operating_income_prev is not None
-        and operating_income_prev != 0
-    ):
-        growth_rate = (operating_income - operating_income_prev) / operating_income_prev
-        growth["営業利益成長率"] = _pct(growth_rate) or ""
-    if total_assets is not None and total_assets_prev is not None and total_assets_prev != 0:
-        growth_rate = (total_assets - total_assets_prev) / total_assets_prev
-        growth["総資産成長率"] = _pct(growth_rate) or ""
-    if growth:
-        result["growth"] = growth
-
-    # --- Cash Flow ---
-    if operating_cf is not None or investing_cf is not None or financing_cf is not None:
-        cf: dict[str, str | float] = {}
-        if operating_cf is not None:
-            cf["営業CF"] = operating_cf
-            # Operating CF Margin = Operating CF / Revenue
-            if (v := _pct(_safe_div(operating_cf, revenue))) is not None:
-                cf["営業CFマージン"] = v
-        if investing_cf is not None:
-            cf["投資CF"] = investing_cf
-        if financing_cf is not None:
-            cf["財務CF"] = financing_cf
-        if operating_cf is not None and investing_cf is not None:
-            free_cf = operating_cf + investing_cf
-            cf["フリーCF"] = free_cf
-            # FCF Margin = Free CF / Revenue
-            if (v := _pct(_safe_div(free_cf, revenue))) is not None:
-                cf["FCFマージン"] = v
+    if prof := _calc_profitability(v):
+        result["profitability"] = prof
+    if stab := _calc_stability(v):
+        result["stability"] = stab
+    if eff := _calc_efficiency(v):
+        result["efficiency"] = eff
+    if grow := _calc_growth(v):
+        result["growth"] = grow
+    if cf := _calc_cash_flow(v):
         result["cash_flow"] = cf
-
-    # --- Raw values for reference ---
-    raw: dict[str, float] = {}
-    for label, val in [
-        ("売上高", revenue),
-        ("営業利益", operating_income),
-        ("経常利益", ordinary_income),
-        ("当期純利益", ni_for_roe),
-        ("総資産", total_assets),
-        ("純資産", equity_for_roe),
-    ]:
-        if val is not None:
-            raw[label] = val
-    if raw:
+    if raw := _build_raw_values(v):
         result["raw_values"] = raw
 
     return cast("FinancialMetrics", result)

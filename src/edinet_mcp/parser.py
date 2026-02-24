@@ -192,40 +192,44 @@ class XBRLParser:
             return facts
 
         for elem in root.iter():
-            tag = elem.tag
-            text = elem.text
-            if text is None or not text.strip():
-                continue
-
-            # Extract namespace and local name
-            if tag.startswith("{"):
-                ns_end = tag.index("}")
-                namespace = tag[1:ns_end]
-                local_name = tag[ns_end + 1 :]
-            else:
-                namespace = ""
-                local_name = tag
-
-            # Only process financial fact elements
-            if not _is_financial_element(namespace, local_name):
-                continue
-
-            context_ref = elem.get("contextRef", "")
-            unit_ref = elem.get("unitRef", "")
-            decimals = elem.get("decimals", "")
-
-            facts.append(
-                {
-                    "element": local_name,
-                    "namespace": namespace,
-                    "value": _coerce_value(text.strip()),
-                    "context": context_ref,
-                    "unit": unit_ref,
-                    "decimals": decimals,
-                }
-            )
+            fact = self._parse_xbrl_element(elem)
+            if fact is not None:
+                facts.append(fact)
 
         return facts
+
+    @staticmethod
+    def _parse_xbrl_element(elem: ET.Element) -> dict[str, Any] | None:
+        """Parse a single XML element into a fact dict, or *None* to skip.
+
+        Resolves the Clark-notation tag into namespace / local-name and
+        filters out non-financial elements.
+        """
+        tag = elem.tag
+        text = elem.text
+        if text is None or not text.strip():
+            return None
+
+        # Extract namespace and local name from Clark notation
+        if tag.startswith("{"):
+            ns_end = tag.index("}")
+            namespace = tag[1:ns_end]
+            local_name = tag[ns_end + 1 :]
+        else:
+            namespace = ""
+            local_name = tag
+
+        if not _is_financial_element(namespace, local_name):
+            return None
+
+        return {
+            "element": local_name,
+            "namespace": namespace,
+            "value": _coerce_value(text.strip()),
+            "context": elem.get("contextRef", ""),
+            "unit": elem.get("unitRef", ""),
+            "decimals": elem.get("decimals", ""),
+        }
 
     @staticmethod
     def _categorize_facts(facts: list[dict[str, Any]], stmt: FinancialStatement) -> None:

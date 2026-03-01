@@ -615,7 +615,7 @@ class EdinetClient:
 
     async def _get_company_list(self) -> list[Company]:
         """Load the EDINET code list, downloading if necessary."""
-        cached = self._cache.get_json("companies", {"version": "v2"}, max_age=_CACHE_TTL_COMPANIES)
+        cached = self._cache.get_json("companies", {"version": "v3"}, max_age=_CACHE_TTL_COMPANIES)
         if cached is not None:
             return [Company(**c) for c in cached]
 
@@ -628,7 +628,7 @@ class EdinetClient:
         companies = self._parse_code_list_zip(data)
         self._cache.put_json(
             "companies",
-            {"version": "v2"},
+            {"version": "v3"},
             [c.model_dump() for c in companies],
         )
         logger.info(f"Cached {len(companies)} companies")
@@ -668,6 +668,7 @@ class EdinetClient:
                     # SEC code is 5 digits (e.g. "72030"); ticker is first 4
                     sec_code = row[11].strip() if len(row) > 11 else ""
                     ticker = sec_code[:4] if sec_code else ""
+                    corporate_number = row[12].strip() if len(row) > 12 else ""
                     industry = row[10].strip() if len(row) > 10 else ""
                     is_listed = row[2].strip() == "上場" if len(row) > 2 else False
                     companies.append(
@@ -676,6 +677,8 @@ class EdinetClient:
                             name=row[6].strip() if len(row) > 6 else "",
                             name_en=name_en or None,
                             ticker=ticker or None,
+                            sec_code=sec_code or None,
+                            corporate_number=corporate_number or None,
                             industry=industry or None,
                             is_listed=is_listed,
                         )

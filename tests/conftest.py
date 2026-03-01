@@ -24,6 +24,8 @@ def sample_company() -> Company:
         name="トヨタ自動車株式会社",
         name_en="Toyota Motor Corporation",
         ticker="7203",
+        sec_code="72030",
+        corporate_number="2180001012461",
         industry="輸送用機器",
         accounting_standard=AccountingStandard.IFRS,
         is_listed=True,

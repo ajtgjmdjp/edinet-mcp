@@ -399,3 +399,169 @@ class TestRetryLogic:
     def test_retryable_status_codes(self) -> None:
         """Verify the set of retryable status codes."""
         assert {429, 500, 502, 503, 504} == _RETRYABLE_STATUS
+
+
+class TestParseCodeListZip:
+    """Tests for EdinetClient._parse_code_list_zip (EDINET CSV parsing)."""
+
+    @staticmethod
+    def _make_zip(rows: list[list[str]]) -> bytes:
+        """Build a ZIP containing a single cp932-encoded CSV."""
+        header = [
+            "EDINETコード",
+            "提出者種別",
+            "上場区分",
+            "連結の有無",
+            "資本金",
+            "決算日",
+            "提出者名",
+            "提出者名（英字表記）",
+            "提出者名（ヨミ）",
+            "所在地",
+            "提出者業種",
+            "証券コード",
+            "提出者法人番号",
+        ]
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            import csv as csv_mod
+
+            csv_buf = io.StringIO()
+            writer = csv_mod.writer(csv_buf)
+            writer.writerow(header)
+            for row in rows:
+                writer.writerow(row)
+            zf.writestr("EdinetcodeDlInfo.csv", csv_buf.getvalue().encode("cp932"))
+        return buf.getvalue()
+
+    def test_basic_parsing(self) -> None:
+        """Parse a single listed company with all fields."""
+        data = self._make_zip(
+            [
+                [
+                    "E02144",
+                    "内国法人・組合",
+                    "上場",
+                    "有",
+                    "635401",
+                    "3月31日",
+                    "トヨタ自動車株式会社",
+                    "Toyota Motor Corporation",
+                    "トヨタジドウシャ",
+                    "愛知県豊田市",
+                    "輸送用機器",
+                    "72030",
+                    "2180001012461",
+                ],
+            ]
+        )
+        companies = EdinetClient._parse_code_list_zip(data)
+        assert len(companies) == 1
+        c = companies[0]
+        assert c.edinet_code == "E02144"
+        assert c.name == "トヨタ自動車株式会社"
+        assert c.name_en == "Toyota Motor Corporation"
+        assert c.ticker == "7203"
+        assert c.sec_code == "72030"
+        assert c.corporate_number == "2180001012461"
+        assert c.industry == "輸送用機器"
+        assert c.is_listed is True
+
+    def test_unlisted_company(self) -> None:
+        """Unlisted company has no sec_code or ticker."""
+        data = self._make_zip(
+            [
+                [
+                    "E31000",
+                    "内国法人・組合",
+                    "非上場",
+                    "無",
+                    "1000",
+                    "3月31日",
+                    "テスト株式会社",
+                    "",
+                    "",
+                    "東京都",
+                    "その他",
+                    "",
+                    "1234567890123",
+                ],
+            ]
+        )
+        companies = EdinetClient._parse_code_list_zip(data)
+        assert len(companies) == 1
+        c = companies[0]
+        assert c.edinet_code == "E31000"
+        assert c.ticker is None
+        assert c.sec_code is None
+        assert c.corporate_number == "1234567890123"
+        assert c.is_listed is False
+
+    def test_missing_corporate_number(self) -> None:
+        """Company with blank corporate number parses as None."""
+        data = self._make_zip(
+            [
+                [
+                    "E50000",
+                    "内国法人・組合",
+                    "上場",
+                    "有",
+                    "500",
+                    "3月31日",
+                    "コード無し株式会社",
+                    "",
+                    "",
+                    "東京都",
+                    "情報・通信業",
+                    "99990",
+                    "",
+                ],
+            ]
+        )
+        companies = EdinetClient._parse_code_list_zip(data)
+        assert len(companies) == 1
+        c = companies[0]
+        assert c.sec_code == "99990"
+        assert c.corporate_number is None
+
+    def test_short_row_skipped(self) -> None:
+        """Rows with fewer than 7 columns are skipped."""
+        data = self._make_zip(
+            [
+                ["E00001", "内国法人", "上場"],  # too short
+            ]
+        )
+        companies = EdinetClient._parse_code_list_zip(data)
+        assert len(companies) == 0
+
+    def test_non_edinet_code_skipped(self) -> None:
+        """Rows not starting with 'E' are skipped."""
+        data = self._make_zip(
+            [
+                [
+                    "X99999",
+                    "内国法人・組合",
+                    "上場",
+                    "有",
+                    "100",
+                    "3月31日",
+                    "不正コード株式会社",
+                    "",
+                    "",
+                    "東京都",
+                    "その他",
+                    "12340",
+                    "9999999999999",
+                ],
+            ]
+        )
+        companies = EdinetClient._parse_code_list_zip(data)
+        assert len(companies) == 0
+
+    def test_empty_zip(self) -> None:
+        """ZIP with no CSV returns empty list."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("readme.txt", "no csv here")
+        companies = EdinetClient._parse_code_list_zip(buf.getvalue())
+        assert companies == []

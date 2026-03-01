@@ -83,7 +83,9 @@ class Company(BaseModel):
         edinet_code: Unique EDINET identifier (e.g. ``"E02144"``).
         name: Official company name in Japanese.
         name_en: English name, if available.
-        ticker: Securities code on TSE (e.g. ``"7203"``), if listed.
+        ticker: 4-digit securities code on TSE (e.g. ``"7203"``), if listed.
+        sec_code: 5-digit securities code with check digit (e.g. ``"72030"``).
+        corporate_number: 13-digit corporate number / 法人番号 (e.g. ``"2180001012461"``).
         industry: Industry classification.
         accounting_standard: Primary accounting standard.
     """
@@ -92,6 +94,8 @@ class Company(BaseModel):
     name: str
     name_en: str | None = None
     ticker: str | None = None
+    sec_code: str | None = None
+    corporate_number: str | None = None
     industry: str | None = None
     accounting_standard: AccountingStandard = AccountingStandard.UNKNOWN
     is_listed: bool = False

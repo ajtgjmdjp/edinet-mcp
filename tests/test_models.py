@@ -43,7 +43,15 @@ class TestCompany:
     def test_fields(self, sample_company: Company) -> None:
         assert sample_company.edinet_code == "E02144"
         assert sample_company.ticker == "7203"
+        assert sample_company.sec_code == "72030"
+        assert sample_company.corporate_number == "2180001012461"
         assert sample_company.is_listed is True
+
+    def test_new_fields_optional(self) -> None:
+        """sec_code and corporate_number default to None."""
+        c = Company(edinet_code="E99999", name="テスト株式会社")
+        assert c.sec_code is None
+        assert c.corporate_number is None
 
 
 class TestFiling:

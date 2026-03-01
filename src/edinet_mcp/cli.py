@@ -346,7 +346,7 @@ def diff(
     from edinet_mcp._diff import diff_statements
     from edinet_mcp.client import EdinetClient
 
-    async def _run():
+    async def _run() -> DiffResult:
         async with EdinetClient() as client:
             return await diff_statements(
                 client,

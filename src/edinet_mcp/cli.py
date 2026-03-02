@@ -13,15 +13,35 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import click
 
 if TYPE_CHECKING:
+    from types import FrameType
+
     from edinet_mcp._diff import DiffResult
     from edinet_mcp.models import Company, FinancialStatement
 from loguru import logger
+
+
+class _InterceptHandler(logging.Handler):
+    """Route stdlib logging through loguru for unified formatting."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno  # type: ignore[assignment]
+        # Walk up the stack to find the actual caller (not logging internals)
+        frame: FrameType | None = logging.currentframe()
+        depth = 0
+        while frame and (depth == 0 or frame.f_code.co_filename == logging.__file__):
+            frame = frame.f_back
+            depth += 1
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
 @click.group()
@@ -31,6 +51,8 @@ def cli(verbose: bool) -> None:
     level = "DEBUG" if verbose else "INFO"
     logger.remove()
     logger.add(sys.stderr, level=level, format="{time:HH:mm:ss} | {level:<7} | {message}")
+    # Intercept stdlib logging from library modules into loguru
+    logging.basicConfig(handlers=[_InterceptHandler()], level=level, force=True)
 
 
 @cli.command()

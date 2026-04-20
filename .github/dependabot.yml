@@ -1,0 +1,28 @@
+# Dependabot config for GitHub Actions dependencies.
+#
+# Place at .github/dependabot.yml in each repo. When any pinned action
+# (e.g. `uses: owner/name@<sha>  # vX.Y.Z`) has a newer upstream tag,
+# Dependabot opens a PR updating BOTH the SHA and the trailing tag
+# comment, as long as the comment is in `# <tag>` form on the same line.
+# Ref: https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/keeping-your-actions-up-to-date-with-dependabot
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+      include: scope

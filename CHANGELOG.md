@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-04-21
+
+### Security
+- **XBRL parser hardening**: `defusedxml.common.DefusedXmlException` subclasses (`EntitiesForbidden`, `DTDForbidden`, `ExternalReferenceForbidden`, `NotSupportedError`) raised during XBRL parsing are now caught alongside `xml.etree.ElementTree.ParseError`. Previously, a single hostile XBRL instance inside a filing ZIP (billion-laughs, XXE, external DTD, etc.) would surface an uncaught exception and abort parsing of every remaining sibling instance. The parser now logs the rejection with the exception class name and continues with the next file, returning empty facts for the rejected instance.
+
+### Added
+- **Python 3.13 support**: Added `Programming Language :: Python :: 3.13` trove classifier and `"3.13"` to the CI test matrix.
+
+## [0.6.4] - 2026-04-20
+
+### Added
+- **Library-safe logging**: `edinet_mcp` attaches a `NullHandler` at import time so consumers see no log output unless they configure handlers themselves (PEP 282).
+
+### Security
+- **Trusted publishing**: PyPI releases now use GitHub OIDC (no long-lived API tokens).
+- **Supply-chain hardening**: GitHub Actions pinned by commit SHA and workflow `permissions:` set to least-privilege; Dependabot enabled for Action SHA updates.
+
+## [0.6.3] - 2026-03-02
+
+### Added
+- **`Company.sec_code` and `Company.corporate_number`**: 5-digit securities code and 13-digit 法人番号 extracted from EDINET CSV. Both are `Optional[str]` for backward compatibility.
+
+### Changed
+- Company-list cache version bumped to `v3`; stale entries from older releases are invalidated on first use.
+
+## [0.6.2] - 2026-02-15
+
+### Changed
+- **Default filing-search window extended from 365 → 730 days**: annual reports filed more than 6 months ago are now discovered when `period` is omitted from `get_filings()`.
+
+## [0.6.1] - 2026-02-15
+
+### Fixed
+- **MCP `period` parameter accepts `int`**: Claude Desktop (and other MCP clients) may send `period` as an integer. A Pydantic `BeforeValidator` now coerces `int` → `str` before validation so previously-rejected calls succeed.
+
+## [0.6.0] - 2026-02-15
+
+### Added
+- **CLI `diff` command**: `edinet-mcp diff -c E02144 -p1 2023 -p2 2024` performs cross-period financial-statement comparison from the command line.
+- **Public diff API**: `diff_statements`, `DiffResult`, and `LineItemDiff` are now exported from the top-level `edinet_mcp` package.
+
 ## [0.5.0] - 2026-02-14
 
 ### Added

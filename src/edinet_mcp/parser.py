@@ -29,6 +29,7 @@ import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any
 
 import defusedxml.ElementTree as DefusedET
+from defusedxml.common import DefusedXmlException
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -161,8 +162,8 @@ class XBRLParser:
                 if facts:
                     found += len(facts)
                     self._categorize_facts(facts, stmt)
-            except ET.ParseError as e:
-                logger.warning(f"Failed to parse {xbrl_file.name}: {e}")
+            except (ET.ParseError, DefusedXmlException) as e:
+                logger.warning(f"Failed to parse {xbrl_file.name} ({type(e).__name__}): {e}")
 
         return found
 
@@ -185,6 +186,17 @@ class XBRLParser:
             tree = DefusedET.parse(path)
         except ET.ParseError as e:
             logger.warning("Failed to parse XBRL %s: %s", path.name, e)
+            return facts
+        except DefusedXmlException as e:
+            # defusedxml rejected the document (billion-laughs, XXE,
+            # external DTD, etc.). Treat as parse failure and skip so a
+            # single hostile file cannot abort parsing of the whole filing.
+            logger.warning(
+                "Rejected unsafe XBRL %s (%s): %s",
+                path.name,
+                type(e).__name__,
+                e,
+            )
             return facts
 
         root = tree.getroot()

@@ -5,13 +5,14 @@ from __future__ import annotations
 import datetime
 import io
 import zipfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
 from edinet_mcp.client import (
+    _DOC_LIST_WITH_RESULTS,
     _RETRYABLE_STATUS,
     _ZIP_MAX_FILES,
     _ZIP_MAX_TOTAL_SIZE,
@@ -399,6 +400,51 @@ class TestRetryLogic:
     def test_retryable_status_codes(self) -> None:
         """Verify the set of retryable status codes."""
         assert {429, 500, 502, 503, 504} == _RETRYABLE_STATUS
+
+
+class TestFetchFilingsCache:
+    """Tests for _fetch_filings_for_date cache consistency (docID filtering)."""
+
+    _DATE = datetime.date(2025, 6, 20)
+    _CACHE_PARAMS: ClassVar[dict[str, Any]] = {
+        "date": "2025-06-20",
+        "type": _DOC_LIST_WITH_RESULTS,
+    }
+
+    @staticmethod
+    def _client(tmp_path: Path) -> EdinetClient:
+        return EdinetClient(api_key="test", cache_dir=tmp_path, rate_limit=100_000.0)
+
+    async def test_cache_miss_filters_docid_less_rows_before_caching(
+        self, tmp_path: Path, sample_api_row: dict[str, Any]
+    ) -> None:
+        """Rows without docID must be filtered BEFORE writing to the cache."""
+        client = self._client(tmp_path)
+        docid_less_row = dict(sample_api_row, docID=None)
+        client._get_json = AsyncMock(  # type: ignore[method-assign]
+            return_value={"results": [sample_api_row, docid_less_row]}
+        )
+
+        filings = await client._fetch_filings_for_date(self._DATE)
+        assert len(filings) == 1
+        assert filings[0].doc_id == "S100VVC2"
+
+        cached = client._cache.get_json("filings", self._CACHE_PARAMS)
+        assert cached is not None
+        assert all(row.get("docID") for row in cached), "cache must not contain rows without docID"
+
+    async def test_cache_hit_with_docid_less_row_does_not_raise(
+        self, tmp_path: Path, sample_api_row: dict[str, Any]
+    ) -> None:
+        """A poisoned cache entry (row without docID) must not raise KeyError."""
+        client = self._client(tmp_path)
+        docid_less_row = dict(sample_api_row, docID=None)
+        # Simulate a cache poisoned by a previous buggy version
+        client._cache.put_json("filings", self._CACHE_PARAMS, [sample_api_row, docid_less_row])
+
+        filings = await client._fetch_filings_for_date(self._DATE)
+        assert len(filings) == 1
+        assert filings[0].doc_id == "S100VVC2"
 
 
 class TestParseCodeListZip:

@@ -326,16 +326,20 @@ class EdinetClient:
 
         cached = self._cache.get_json("filings", cache_params, max_age=_CACHE_TTL_FILINGS)
         if cached is not None:
-            return [Filing.from_api_row(row) for row in cached]
+            # Filter defensively: caches written by older versions may still
+            # contain rows without a docID (e.g. metadata-only rows).
+            return [Filing.from_api_row(row) for row in cached if row.get("docID")]
 
         url = f"{self._base_url}/documents.json"
         params = self._request_params({"date": date_str, "type": _DOC_LIST_WITH_RESULTS})
 
         data = await self._get_json(url, params)
-        rows: list[dict[str, Any]] = data.get("results", [])
+        raw_rows: list[dict[str, Any]] = data.get("results", [])
+        # Filter BEFORE caching so cache-hit and fresh paths stay consistent.
+        rows = [row for row in raw_rows if row.get("docID")]
         self._cache.put_json("filings", cache_params, rows)
 
-        return [Filing.from_api_row(row) for row in rows if row.get("docID")]
+        return [Filing.from_api_row(row) for row in rows]
 
     # ------------------------------------------------------------------
     # Document download

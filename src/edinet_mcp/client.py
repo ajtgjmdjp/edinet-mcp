@@ -239,7 +239,9 @@ class EdinetClient:
         # All retries exhausted
         if isinstance(last_exc, httpx.HTTPError):
             raise _sanitize_http_error(last_exc, self._api_key) from None
-        raise last_exc  # type: ignore[misc]
+        if last_exc is None:
+            raise RuntimeError("all retries exhausted without a recorded error")
+        raise last_exc
 
     async def _get_json(self, url: str, params: dict[str, Any]) -> Any:
         """Perform a rate-limited GET and return parsed JSON."""

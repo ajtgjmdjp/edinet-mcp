@@ -401,6 +401,16 @@ class TestRetryLogic:
         """Verify the set of retryable status codes."""
         assert {429, 500, 502, 503, 504} == _RETRYABLE_STATUS
 
+    async def test_no_attempts_raises_runtime_error(self) -> None:
+        """If the retry loop records no exception, a RuntimeError is raised."""
+        client = _no_wait_client()
+        client._max_retries = -1  # loop body never executes -> last_exc stays None
+        client._http = MagicMock()
+        client._http.get = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="retries exhausted"):
+            await client._request_with_retry("https://example.com/test", {})
+
 
 class TestFetchFilingsCache:
     """Tests for _fetch_filings_for_date cache consistency (docID filtering)."""

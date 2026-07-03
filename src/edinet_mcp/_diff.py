@@ -6,16 +6,18 @@ calculating changes (増減額) and growth rates (増減率) for each line item.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import httpx
-from loguru import logger
 
 from edinet_mcp.client import EdinetAPIError
 
 if TYPE_CHECKING:
     from edinet_mcp.client import EdinetClient
     from edinet_mcp.models import StatementData
+
+logger = logging.getLogger(__name__)
 
 
 class LineItemDiff(TypedDict):

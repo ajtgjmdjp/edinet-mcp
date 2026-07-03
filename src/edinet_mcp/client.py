@@ -24,6 +24,7 @@ import asyncio
 import datetime
 import io
 import json
+import logging
 import re
 import tempfile
 import zipfile
@@ -31,7 +32,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 import httpx
-from loguru import logger
 
 from edinet_mcp._cache import DiskCache
 from edinet_mcp._config import get_settings
@@ -45,6 +45,8 @@ from edinet_mcp.models import (
     FinancialStatement,
 )
 from edinet_mcp.parser import XBRLParser
+
+logger = logging.getLogger(__name__)
 
 # Maximum date range to prevent excessive API calls
 _MAX_DATE_RANGE_DAYS = 366

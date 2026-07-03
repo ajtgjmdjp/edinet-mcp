@@ -202,9 +202,10 @@ def _extract_values(stmt: FinancialStatement) -> _StatementValues:
     v.revenue_prev = _get_val(stmt, "income_statement", "売上高", "前期")
     v.operating_income_prev = _get_val(stmt, "income_statement", "営業利益", "前期")
     v.total_assets_prev = _get_val(stmt, "balance_sheet", "資産合計", "前期")
-    # Derived
-    v.ni_for_roe = v.net_income_parent or v.net_income
-    v.equity_for_roe = v.shareholders_equity or v.net_assets
+    # Derived — use explicit None checks: 0 is a valid reported value and
+    # must not trigger the fallback (`or` would treat 0 as missing).
+    v.ni_for_roe = v.net_income if v.net_income_parent is None else v.net_income_parent
+    v.equity_for_roe = v.net_assets if v.shareholders_equity is None else v.shareholders_equity
     return v
 
 
@@ -219,7 +220,10 @@ def _calc_profitability(v: _StatementValues) -> dict[str, str]:
         profitability["経常利益率"] = p
     if (p := _pct(_safe_div(v.ni_for_roe, v.revenue))) is not None:
         profitability["当期純利益率"] = p
-    if (p := _pct(_safe_div(v.ordinary_income or v.operating_income, v.total_assets))) is not None:
+    # ROA numerator: 経常利益 if reported (0 is valid, e.g. a loss year),
+    # falling back to 営業利益 only when 経常利益 is absent (e.g. IFRS).
+    roa_numerator = v.operating_income if v.ordinary_income is None else v.ordinary_income
+    if (p := _pct(_safe_div(roa_numerator, v.total_assets))) is not None:
         profitability["ROA"] = p
     if (p := _pct(_safe_div(v.ni_for_roe, v.equity_for_roe))) is not None:
         profitability["ROE"] = p

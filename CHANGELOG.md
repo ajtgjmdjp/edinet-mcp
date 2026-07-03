@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-07-03
+
+### Fixed
+- **Filing-list cache no longer poisoned by rows without `docID`**: rows lacking
+  `docID` are filtered before being cached (and defensively on cache reads), so a
+  single malformed API row can no longer cause repeated `KeyError` failures for a
+  cached date until TTL expiry.
+- **Financial metrics treat `0` as a valid value, not as missing**: ROA no longer
+  silently substitutes operating income when ordinary income is exactly `0`, and
+  ROE no longer falls back when net income or shareholders' equity is `0`.
+  Loss-year ratios are now computed correctly.
+
+### Changed
+- **Library modules now use stdlib `logging` instead of loguru**: importing
+  `edinet_mcp` no longer emits log output to stderr. A `NullHandler` is attached
+  to the `edinet_mcp` logger per library best practice; applications can opt in
+  via standard `logging` configuration. The CLI keeps its loguru-formatted
+  stderr output (stdlib records are routed through it), and stdout stays clean
+  for JSON consumers.
+- Retry exhaustion in the HTTP client now raises a clear `RuntimeError` instead
+  of relying on a type-ignored re-raise.
+
 ## [0.6.5] - 2026-04-21
 
 ### Security

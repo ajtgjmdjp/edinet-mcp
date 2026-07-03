@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,8 @@ from click.testing import CliRunner
 from edinet_mcp.cli import cli
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import pytest
 
 
@@ -42,29 +45,41 @@ class TestLibraryLogging:
             )
 
 
-class TestCLILogging:
-    """CLI must route all logs to stderr, never stdout."""
+def _assert_no_log_lines(text: str) -> None:
+    for line in text.strip().split("\n"):
+        # Log lines from loguru contain " | " with level names
+        assert not (
+            " | " in line and any(lvl in line for lvl in ("INFO", "DEBUG", "WARNING", "ERROR"))
+        ), f"Log message leaked to stdout: {line}"
 
-    def test_cli_stdout_has_no_log_lines(self) -> None:
-        """CLI output on stdout must not contain log-format lines."""
+
+class TestCLILogging:
+    """CLI must route all logs to stderr, never stdout.
+
+    Note: ``result.output`` mixes stdout and stderr in click >= 8.2, so
+    assertions must use ``result.stdout``. The no-API-key warning is forced
+    to fire (env var removed, cwd moved away from any ``.env`` file) so the
+    stream separation is actually exercised.
+    """
+
+    def test_cli_stdout_has_no_log_lines(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Log lines (e.g. the no-API-key warning) must go to stderr, not stdout."""
+        monkeypatch.delenv("EDINET_API_KEY", raising=False)
+        monkeypatch.chdir(tmp_path)
         runner = CliRunner()
         # search for a nonexistent query — triggers the full pipeline
         result = runner.invoke(cli, ["search", "test_nonexistent_xyz_99999"])
-        for line in result.output.strip().split("\n"):
-            if not line:
-                continue
-            # Log lines from loguru contain " | " with level names
-            assert not (
-                " | " in line and any(lvl in line for lvl in ("INFO", "DEBUG", "WARNING", "ERROR"))
-            ), f"Log message leaked to stdout: {line}"
+        _assert_no_log_lines(result.stdout)
+        assert "No EDINET API key found" in result.stderr
 
-    def test_cli_json_stdout_purity(self) -> None:
-        """JSON output on stdout must not be contaminated by log messages."""
+    def test_cli_json_stdout_purity(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """JSON output on stdout must stay machine-parseable despite warnings."""
+        monkeypatch.delenv("EDINET_API_KEY", raising=False)
+        monkeypatch.chdir(tmp_path)
         runner = CliRunner()
         result = runner.invoke(cli, ["search", "test_nonexistent_xyz_99999", "--json-output"])
-        for line in result.output.strip().split("\n"):
-            if not line:
-                continue
-            assert not (
-                " | " in line and any(lvl in line for lvl in ("INFO", "DEBUG", "WARNING", "ERROR"))
-            ), f"Log message leaked to stdout: {line}"
+        _assert_no_log_lines(result.stdout)
+        json.loads(result.stdout)
+        assert "No EDINET API key found" in result.stderr

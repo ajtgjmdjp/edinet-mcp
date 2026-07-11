@@ -6,15 +6,17 @@ a comparison table, optionally sorted/filtered by a specific metric.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from loguru import logger
 
 from edinet_mcp._metrics import calculate_metrics
 
 if TYPE_CHECKING:
     from edinet_mcp.client import EdinetClient
+
+logger = logging.getLogger(__name__)
 
 # Maximum companies per screening request (rate limit safety)
 _MAX_COMPANIES = 20

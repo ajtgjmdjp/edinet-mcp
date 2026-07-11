@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import re
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any
@@ -34,14 +35,14 @@ from defusedxml.common import DefusedXmlException
 if TYPE_CHECKING:
     from pathlib import Path
 
-from loguru import logger
-
 from edinet_mcp.models import (
     AccountingStandard,
     Filing,
     FinancialStatement,
     StatementData,
 )
+
+logger = logging.getLogger(__name__)
 
 # XBRL namespace prefixes used in EDINET filings
 _NS = {

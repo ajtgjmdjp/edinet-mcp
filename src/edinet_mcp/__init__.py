@@ -14,6 +14,8 @@ Quick start::
     asyncio.run(main())
 """
 
+import logging
+
 from edinet_mcp._diff import DiffResult, LineItemDiff, diff_statements
 from edinet_mcp._metrics import (
     CashFlowMetrics,
@@ -43,6 +45,10 @@ from edinet_mcp.models import (
     StatementType,
 )
 from edinet_mcp.parser import XBRLParser
+
+# Library best practice: attach a NullHandler so importing edinet_mcp never
+# emits logs on its own; applications opt in to handling via stdlib logging.
+logging.getLogger("edinet_mcp").addHandler(logging.NullHandler())
 
 __all__ = [
     "AccountingStandard",
@@ -77,4 +83,4 @@ __all__ = [
     "validate_financial_statement",
 ]
 
-__version__ = "0.6.5"
+__version__ = "0.6.6"

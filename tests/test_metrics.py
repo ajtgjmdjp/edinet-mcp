@@ -62,6 +62,55 @@ class TestCalculateMetrics:
         assert p["ROA"] == "5.00%"  # 100/2000
         assert p["ROE"] == "7.50%"  # 60/800
 
+    def test_roa_uses_zero_ordinary_income(self) -> None:
+        """経常利益 = 0 (valid in a loss year) must NOT fall back to 営業利益."""
+        stmt = _make_stmt(
+            pl_items=[
+                {"科目": "売上高", "当期": 1000},
+                {"科目": "営業利益", "当期": 100},
+                {"科目": "経常利益", "当期": 0},
+            ],
+            bs_items=[{"科目": "資産合計", "当期": 2000}],
+        )
+        metrics = calculate_metrics(stmt)
+        assert metrics["profitability"]["ROA"] == "0.00%"  # 0/2000, not 100/2000
+
+    def test_roa_falls_back_to_operating_income_when_ordinary_missing(self) -> None:
+        """経常利益 absent (e.g. IFRS filing) → ROA uses 営業利益."""
+        stmt = _make_stmt(
+            pl_items=[
+                {"科目": "売上高", "当期": 1000},
+                {"科目": "営業利益", "当期": 100},
+            ],
+            bs_items=[{"科目": "資産合計", "当期": 2000}],
+        )
+        metrics = calculate_metrics(stmt)
+        assert metrics["profitability"]["ROA"] == "5.00%"  # 100/2000
+
+    def test_net_income_parent_zero_not_overridden(self) -> None:
+        """親会社株主に帰属する当期純利益 = 0 must NOT fall back to 当期純利益."""
+        stmt = _make_stmt(
+            pl_items=[
+                {"科目": "売上高", "当期": 1000},
+                {"科目": "当期純利益", "当期": 60},
+                {"科目": "親会社株主に帰属する当期純利益", "当期": 0},
+            ],
+        )
+        metrics = calculate_metrics(stmt)
+        assert metrics["profitability"]["当期純利益率"] == "0.00%"  # 0/1000, not 60/1000
+
+    def test_shareholders_equity_zero_not_overridden(self) -> None:
+        """株主資本 = 0 must NOT fall back to 純資産合計."""
+        stmt = _make_stmt(
+            bs_items=[
+                {"科目": "資産合計", "当期": 2000},
+                {"科目": "純資産合計", "当期": 800},
+                {"科目": "株主資本", "当期": 0},
+            ],
+        )
+        metrics = calculate_metrics(stmt)
+        assert metrics["stability"]["自己資本比率"] == "0.00%"  # 0/2000, not 800/2000
+
     def test_stability_ratios(self) -> None:
         stmt = _make_stmt(
             bs_items=[

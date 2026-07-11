@@ -24,6 +24,7 @@ import asyncio
 import datetime
 import io
 import json
+import logging
 import re
 import tempfile
 import zipfile
@@ -31,7 +32,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 import httpx
-from loguru import logger
 
 from edinet_mcp._cache import DiskCache
 from edinet_mcp._config import get_settings
@@ -45,6 +45,8 @@ from edinet_mcp.models import (
     FinancialStatement,
 )
 from edinet_mcp.parser import XBRLParser
+
+logger = logging.getLogger(__name__)
 
 # Maximum date range to prevent excessive API calls
 _MAX_DATE_RANGE_DAYS = 366
@@ -237,7 +239,9 @@ class EdinetClient:
         # All retries exhausted
         if isinstance(last_exc, httpx.HTTPError):
             raise _sanitize_http_error(last_exc, self._api_key) from None
-        raise last_exc  # type: ignore[misc]
+        if last_exc is None:
+            raise RuntimeError("all retries exhausted without a recorded error")
+        raise last_exc
 
     async def _get_json(self, url: str, params: dict[str, Any]) -> Any:
         """Perform a rate-limited GET and return parsed JSON."""
@@ -326,16 +330,20 @@ class EdinetClient:
 
         cached = self._cache.get_json("filings", cache_params, max_age=_CACHE_TTL_FILINGS)
         if cached is not None:
-            return [Filing.from_api_row(row) for row in cached]
+            # Filter defensively: caches written by older versions may still
+            # contain rows without a docID (e.g. metadata-only rows).
+            return [Filing.from_api_row(row) for row in cached if row.get("docID")]
 
         url = f"{self._base_url}/documents.json"
         params = self._request_params({"date": date_str, "type": _DOC_LIST_WITH_RESULTS})
 
         data = await self._get_json(url, params)
-        rows: list[dict[str, Any]] = data.get("results", [])
+        raw_rows: list[dict[str, Any]] = data.get("results", [])
+        # Filter BEFORE caching so cache-hit and fresh paths stay consistent.
+        rows = [row for row in raw_rows if row.get("docID")]
         self._cache.put_json("filings", cache_params, rows)
 
-        return [Filing.from_api_row(row) for row in rows if row.get("docID")]
+        return [Filing.from_api_row(row) for row in rows]
 
     # ------------------------------------------------------------------
     # Document download

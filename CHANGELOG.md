@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **All supported `doc_type` values are now documented in the MCP tool
+  descriptions and README**: `semiannual_report` (半期報告書, code 160),
+  `extraordinary_report` (臨時報告書, code 180), and `large_shareholding`
+  (大量保有報告書, code 350) join `annual_report` / `quarterly_report`, with
+  tests locking the label → docTypeCode mapping. Contributed by @hjjkkl (#6).
+
 ## [0.6.6] - 2026-07-03
 
 ### Fixed

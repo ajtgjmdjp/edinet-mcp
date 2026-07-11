@@ -27,8 +27,23 @@ class TestDocType:
     def test_from_label_quarterly(self) -> None:
         assert DocType.from_label("quarterly_report") == DocType.QUARTERLY_REPORT
 
+    def test_from_label_semiannual(self) -> None:
+        assert DocType.from_label("semiannual_report") == DocType.SEMIANNUAL_REPORT
+        assert DocType.SEMIANNUAL_REPORT.value == "160"
+
+    def test_from_label_extraordinary(self) -> None:
+        assert DocType.from_label("extraordinary_report") == DocType.EXTRAORDINARY_REPORT
+        assert DocType.EXTRAORDINARY_REPORT.value == "180"
+
+    def test_from_label_large_shareholding(self) -> None:
+        assert DocType.from_label("large_shareholding") == DocType.LARGE_SHAREHOLDING
+        assert DocType.LARGE_SHAREHOLDING.value == "350"
+
     def test_from_code_direct(self) -> None:
         assert DocType.from_label("120") == DocType.ANNUAL_REPORT
+
+    def test_from_code_semiannual_direct(self) -> None:
+        assert DocType.from_label("160") == DocType.SEMIANNUAL_REPORT
 
     def test_invalid_raises(self) -> None:
         with pytest.raises(ValueError):

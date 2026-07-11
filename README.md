@@ -22,7 +22,7 @@ Part of the [Japan Finance Data Stack](https://github.com/ajtgjmdjp/awesome-japa
 **edinet-mcp** provides programmatic access to Japan's [EDINET](https://disclosure.edinet-fsa.go.jp/) financial disclosure system. It normalizes XBRL filings across accounting standards (J-GAAP / IFRS / US-GAAP) into canonical Japanese labels and exposes them as an [MCP](https://modelcontextprotocol.io/) server for AI assistants.
 
 - Search 5,000+ listed Japanese companies
-- Retrieve annual/quarterly financial reports (有価証券報告書, 四半期報告書)
+- Retrieve annual/quarterly/semiannual reports (有価証券報告書, 四半期報告書, 半期報告書) plus extraordinary (臨時報告書) and large shareholding (大量保有報告書) filings
 - **Automatic normalization**: `stmt["売上高"]` works regardless of accounting standard
 - Financial metrics (ROE, ROA, profit margins) and year-over-year comparisons
 - Parse XBRL into Polars/pandas DataFrames (BS, PL, CF)

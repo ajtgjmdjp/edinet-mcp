@@ -82,7 +82,8 @@ mcp = FastMCP(
     instructions=(
         "EDINET MCP server provides tools for accessing Japanese financial "
         "disclosure data. You can search for companies listed on the Tokyo "
-        "Stock Exchange, retrieve financial filings (有価証券報告書, 四半期報告書), "
+        "Stock Exchange, retrieve financial filings (有価証券報告書, 四半期報告書, "
+        "半期報告書, 臨時報告書, 大量保有報告書), "
         "and parse XBRL financial statements (BS, PL, CF) into structured data.\n\n"
         "All financial data comes from EDINET, the Electronic Disclosure for "
         "Investors' NETwork operated by Japan's Financial Services Agency (FSA).\n\n"
@@ -137,8 +138,12 @@ async def get_filings(
         str | None,
         Field(
             description=(
-                "書類タイプでフィルタ: 'annual_report' (有価証券報告書), "
-                "'quarterly_report' (四半期報告書), または省略で全件"
+                "書類タイプでフィルタ: 'annual_report' (有価証券報告書, code 120), "
+                "'quarterly_report' (四半期報告書, code 140), "
+                "'semiannual_report' (半期報告書, code 160), "
+                "'extraordinary_report' (臨時報告書, code 180), "
+                "'large_shareholding' (大量保有報告書, code 350), "
+                "または省略で全件"
             )
         ),
     ] = None,
@@ -176,7 +181,15 @@ async def get_financial_statements(
     ] = None,
     doc_type: Annotated[
         str,
-        Field(description="'annual_report' (有価証券報告書) or 'quarterly_report' (四半期報告書)"),
+        Field(
+            description=(
+                "Filing type: 'annual_report' (有価証券報告書), "
+                "'quarterly_report' (四半期報告書), "
+                "'semiannual_report' (半期報告書), "
+                "'extraordinary_report' (臨時報告書), "
+                "or 'large_shareholding' (大量保有報告書). Default: 'annual_report'."
+            )
+        ),
     ] = "annual_report",
 ) -> dict[str, Any]:
     """Retrieve and parse financial statements (BS, PL, CF) for a company.
@@ -220,7 +233,13 @@ async def get_financial_metrics(
     ] = None,
     doc_type: Annotated[
         str,
-        Field(description="'annual_report' or 'quarterly_report'"),
+        Field(
+            description=(
+                "Filing type: 'annual_report', 'quarterly_report', "
+                "'semiannual_report', 'extraordinary_report', "
+                "or 'large_shareholding'. Default: 'annual_report'."
+            )
+        ),
     ] = "annual_report",
 ) -> dict[str, Any]:
     """Calculate key financial metrics (ROE, ROA, profit margins, etc.).
@@ -269,7 +288,13 @@ async def compare_financial_periods(
     ] = None,
     doc_type: Annotated[
         str,
-        Field(description="'annual_report' or 'quarterly_report'"),
+        Field(
+            description=(
+                "Filing type: 'annual_report', 'quarterly_report', "
+                "'semiannual_report', 'extraordinary_report', "
+                "or 'large_shareholding'. Default: 'annual_report'."
+            )
+        ),
     ] = "annual_report",
 ) -> dict[str, Any]:
     """Compare financial data between current and previous periods.
@@ -356,7 +381,13 @@ async def screen_companies(
     ] = None,
     doc_type: Annotated[
         str,
-        Field(description="'annual_report' or 'quarterly_report'"),
+        Field(
+            description=(
+                "Filing type: 'annual_report', 'quarterly_report', "
+                "'semiannual_report', 'extraordinary_report', "
+                "or 'large_shareholding'. Default: 'annual_report'."
+            )
+        ),
     ] = "annual_report",
     sort_by: Annotated[
         str | None,
@@ -410,7 +441,15 @@ async def diff_financial_statements(
     ],
     doc_type: Annotated[
         str,
-        Field(description="'annual_report' (有価証券報告書) or 'quarterly_report' (四半期報告書)"),
+        Field(
+            description=(
+                "Filing type: 'annual_report' (有価証券報告書), "
+                "'quarterly_report' (四半期報告書), "
+                "'semiannual_report' (半期報告書), "
+                "'extraordinary_report' (臨時報告書), "
+                "or 'large_shareholding' (大量保有報告書). Default: 'annual_report'."
+            )
+        ),
     ] = "annual_report",
 ) -> dict[str, Any]:
     """Compare financial statements for the same company across two periods.

@@ -242,6 +242,10 @@ async def get_financial_statements(
       income_statement: [{"科目": "売上高", "当期": 45095325, "前期": 37154298}, ...]
     Example response (en):
       income_statement: [{"label": "Revenue", "current": 45095325, "prior": 37154298}, ...]
+
+    Note: with language='en', only normalized rows are translated. Rows that
+    were not normalized (the 'summary' statement, or filings where no taxonomy
+    entry matched) pass through unchanged and may contain Japanese keys.
     """
     if language not in ("ja", "en"):
         msg = f"Invalid language: {language!r}. Must be 'ja' or 'en'"

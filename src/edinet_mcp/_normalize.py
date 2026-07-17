@@ -15,7 +15,11 @@ Example output after normalization::
 from __future__ import annotations
 
 from importlib.resources import files as pkg_files
-from typing import Any, cast
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 import yaml
 
@@ -271,12 +275,12 @@ def get_taxonomy_labels(
     ]
 
 
-_alias_cache: dict[str | None, tuple[dict[str, str], dict[str, str]]] = {}
+_alias_cache: dict[str | None, tuple[Mapping[str, str], Mapping[str, str]]] = {}
 
 
 def get_label_aliases(
     statement_key: str | None = None,
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> tuple[Mapping[str, str], Mapping[str, str]]:
     """Return bilingual label maps built from the taxonomy.
 
     Args:
@@ -285,10 +289,12 @@ def get_label_aliases(
             single statement, or ``None`` for global maps.
 
     Returns:
-        Tuple of ``(en_to_ja, ja_to_en)`` where ``en_to_ja`` keys are
-        lowercased English labels (e.g. ``"revenue"`` -> ``"売上高"``)
-        and ``ja_to_en`` maps Japanese labels to their English form
-        (e.g. ``"売上高"`` -> ``"Revenue"``). Cached after first call.
+        Tuple of read-only ``(en_to_ja, ja_to_en)`` mappings where
+        ``en_to_ja`` keys are lowercased English labels (e.g.
+        ``"revenue"`` -> ``"売上高"``) and ``ja_to_en`` maps Japanese
+        labels to their English form (e.g. ``"売上高"`` -> ``"Revenue"``).
+        Cached after first call; the process-wide cache is shared, so the
+        returned mappings are immutable views.
 
     English labels are unique across all statement types, so the global
     ``en_to_ja`` map is unambiguous. A few Japanese labels (e.g. 減損損失)
@@ -309,7 +315,7 @@ def get_label_aliases(
         for item in items:
             en_to_ja[item["label_en"].lower()] = item["label"]
             ja_to_en.setdefault(item["label"], item["label_en"])
-    _alias_cache[statement_key] = (en_to_ja, ja_to_en)
+    _alias_cache[statement_key] = (MappingProxyType(en_to_ja), MappingProxyType(ja_to_en))
     return _alias_cache[statement_key]
 
 

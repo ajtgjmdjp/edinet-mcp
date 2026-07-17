@@ -204,3 +204,20 @@ class TestEnglishLabelAccess:
         cf = StatementData(items=[{"科目": "減損損失", "当期": 1}], label="CashFlowStatement")
         assert cf["Impairment Loss (CF)"] == {"当期": 1}
         assert cf["Impairment Loss"] == {"当期": 1}
+
+    def test_labels_en_accepts_snake_case_labels(self) -> None:
+        # The primary TSV parse path sets snake_case labels (parser.py),
+        # the XBRL fallback sets CamelCase — both must scope correctly
+        cf = StatementData(items=[{"科目": "減損損失", "当期": 1}], label="cash_flow_statement")
+        pl = StatementData(items=[{"科目": "減損損失", "当期": 1}], label="income_statement")
+        assert cf.labels_en == ["Impairment Loss (CF)"]
+        assert pl.labels_en == ["Impairment Loss"]
+
+    def test_alias_maps_are_immutable(self) -> None:
+        from edinet_mcp._normalize import get_label_aliases
+
+        en_to_ja, ja_to_en = get_label_aliases()
+        with pytest.raises(TypeError):
+            en_to_ja["x"] = "y"  # type: ignore[index]
+        with pytest.raises(AttributeError):
+            ja_to_en.clear()  # type: ignore[attr-defined]

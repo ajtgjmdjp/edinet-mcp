@@ -169,10 +169,15 @@ class Filing(BaseModel):
 
 # StatementData.label -> taxonomy key, used to scope English label maps.
 # A few Japanese labels (減損損失 etc.) translate differently in PL vs CF.
+# The TSV parse path sets snake_case labels, the XBRL fallback CamelCase —
+# both must resolve to the same taxonomy key.
 _TAXONOMY_KEYS = {
     "IncomeStatement": "income_statement",
+    "income_statement": "income_statement",
     "BalanceSheet": "balance_sheet",
+    "balance_sheet": "balance_sheet",
     "CashFlowStatement": "cash_flow",
+    "cash_flow_statement": "cash_flow",
 }
 
 
@@ -198,7 +203,11 @@ class StatementData(BaseModel):
     def __getitem__(self, label: str) -> dict[str, Any]:
         """Look up a line item by its Japanese or English label.
 
-        English lookup is case-insensitive.
+        English lookup is case-insensitive and deliberately lenient: it
+        uses the global alias map, so statement-variant names like
+        "Impairment Loss" and "Impairment Loss (CF)" both resolve to the
+        same 減損損失 row of *this* statement. Use :attr:`labels_en` for
+        the exact per-statement English names.
 
         >>> stmt.income_statement["売上高"]
         {"当期": 45095325, "前期": 37154298}

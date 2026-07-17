@@ -247,3 +247,16 @@ class TestGetFinancialStatementsEnglish:
             pytest.raises(ValueError, match="Invalid language"),
         ):
             await _get_financial_statements("E02144", language="fr")
+
+    async def test_language_en_passes_summary_rows_through(self, sample_filing):
+        # summary is never normalized; its raw rows pass through unchanged
+        stmt = FinancialStatement(
+            filing=sample_filing,
+            summary=StatementData(
+                items=[{"element": "ROE", "value": 0.12}],
+                label="summary",
+            ),
+        )
+        with patch("edinet_mcp.server._get_client", return_value=self._client_with(stmt)):
+            result = await _get_financial_statements("E02144", language="en")
+        assert result["summary"] == [{"element": "ROE", "value": 0.12}]

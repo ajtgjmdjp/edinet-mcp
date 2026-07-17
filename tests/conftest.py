@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 import pytest
 
@@ -104,3 +107,34 @@ def sample_api_row() -> dict[str, Any]:
         "englishDocFlag": False,
         "csvFlag": True,
     }
+
+
+_JPCRP_NS_2023 = "http://disclosure.edinet-fsa.go.jp/taxonomy/jpcrp/2023-11-01/jpcrp_cor"
+
+NARRATIVE_XBRL_BODY = (
+    '<jpcrp_cor:BusinessRisksTextBlock contextRef="FilingDateInstant">'
+    "&lt;h3&gt;事業等のリスク&lt;/h3&gt;&lt;p&gt;為替変動リスクがあります。&lt;/p&gt;"
+    "</jpcrp_cor:BusinessRisksTextBlock>"
+)
+
+
+def make_narrative_zip(tmp_path: Path, body: str = NARRATIVE_XBRL_BODY) -> Path:
+    """Build a minimal EDINET-layout ZIP with a synthetic XBRL instance."""
+    import zipfile
+
+    instance = f"""<?xml version="1.0" encoding="UTF-8"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+            xmlns:jpcrp_cor="{_JPCRP_NS_2023}">
+  <xbrli:context id="FilingDateInstant">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E00001-000</xbrli:identifier>
+    </xbrli:entity>
+    <xbrli:period><xbrli:instant>2025-06-20</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  {body}
+</xbrli:xbrl>
+"""
+    zip_path = tmp_path / "narrative.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("XBRL/PublicDoc/jpcrp030000-asr-001_test.xbrl", instance)
+    return zip_path

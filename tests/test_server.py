@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,6 +18,7 @@ from edinet_mcp.server import (
     get_filings,
     get_financial_metrics,
     get_financial_statements,
+    get_narrative,
     list_available_labels,
     screen_companies,
     search_companies,
@@ -27,6 +29,7 @@ from edinet_mcp.server import (
 _search_companies = search_companies.fn
 _get_filings = get_filings.fn
 _get_financial_statements = get_financial_statements.fn
+_get_narrative = get_narrative.fn
 _get_financial_metrics = get_financial_metrics.fn
 _compare_financial_periods = compare_financial_periods.fn
 _list_available_labels = list_available_labels.fn
@@ -260,3 +263,85 @@ class TestGetFinancialStatementsEnglish:
         with patch("edinet_mcp.server._get_client", return_value=self._client_with(stmt)):
             result = await _get_financial_statements("E02144", language="en")
         assert result["summary"] == [{"element": "ROE", "value": 0.12}]
+
+
+class TestGetNarrativeTool:
+    """get_narrative MCP tool — paging over narrative text."""
+
+    def _client_returning(self, narrative):
+        client = MagicMock()
+        client.get_narrative = AsyncMock(return_value=narrative)
+        return client
+
+    def _narrative(self, text: str):
+        from edinet_mcp.models import NarrativeSection
+
+        return NarrativeSection(
+            section="business_risks",
+            element="BusinessRisksTextBlock",
+            text=text,
+            context_ref="FilingDateInstant",
+            doc_id="S100TEST",
+            filing_date=datetime.date(2025, 6, 20),
+        )
+
+    async def test_returns_full_text_when_short(self) -> None:
+        client = self._client_returning(self._narrative("short risk text"))
+        with patch("edinet_mcp.server._get_client", return_value=client):
+            result = await _get_narrative("E02144", "business_risks")
+        assert result["available"] is True
+        assert result["text"] == "short risk text"
+        assert result["truncated"] is False
+        assert result["next_offset"] is None
+        assert result["total_chars"] == len("short risk text")
+
+    async def test_pages_long_text(self) -> None:
+        client = self._client_returning(self._narrative("あ" * 25000))
+        with patch("edinet_mcp.server._get_client", return_value=client):
+            page1 = await _get_narrative("E02144", "business_risks", max_chars=10000)
+        assert page1["truncated"] is True
+        assert page1["returned_chars"] == 10000
+        assert page1["next_offset"] == 10000
+        with patch("edinet_mcp.server._get_client", return_value=client):
+            page3 = await _get_narrative("E02144", "business_risks", max_chars=10000, offset=20000)
+        assert page3["returned_chars"] == 5000
+        assert page3["truncated"] is False
+        assert page3["next_offset"] is None
+
+    async def test_offset_past_end(self) -> None:
+        client = self._client_returning(self._narrative("abc"))
+        with patch("edinet_mcp.server._get_client", return_value=client):
+            result = await _get_narrative("E02144", "business_risks", offset=100)
+        assert result["text"] == ""
+        assert result["truncated"] is False
+        assert result["next_offset"] is None
+
+    async def test_unavailable_section(self) -> None:
+        client = self._client_returning(None)
+        with patch("edinet_mcp.server._get_client", return_value=client):
+            result = await _get_narrative("E02144", "business_risks")
+        assert result["available"] is False
+
+    async def test_invalid_section_raises(self) -> None:
+        client = self._client_returning(None)
+        with (
+            patch("edinet_mcp.server._get_client", return_value=client),
+            pytest.raises(ValueError, match="Invalid section"),
+        ):
+            await _get_narrative("E02144", "bogus")
+
+    async def test_invalid_offset_raises(self) -> None:
+        client = self._client_returning(self._narrative("abc"))
+        with (
+            patch("edinet_mcp.server._get_client", return_value=client),
+            pytest.raises(ValueError, match="offset"),
+        ):
+            await _get_narrative("E02144", "business_risks", offset=-1)
+
+    async def test_max_chars_capped(self) -> None:
+        client = self._client_returning(self._narrative("abc"))
+        with (
+            patch("edinet_mcp.server._get_client", return_value=client),
+            pytest.raises(ValueError, match="max_chars"),
+        ):
+            await _get_narrative("E02144", "business_risks", max_chars=100000)

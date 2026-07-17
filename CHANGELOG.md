@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-17
+
+### Added
+- **Qualitative narrative extraction (`get_narrative`)**: 事業等のリスク
+  (`business_risks`), MD&A (`mdna`), 経営方針 (`business_policy`), 事業の内容
+  (`description_of_business`), コーポレート・ガバナンスの概要
+  (`corporate_governance`), and 研究開発活動 (`research_and_development`) are
+  extracted from the annual report XBRL instance as plain text. Available as
+  `EdinetClient.get_narrative()` (returns `NarrativeSection` with context/doc
+  provenance) and a paged MCP tool (`max_chars`/`offset`, `next_offset` for
+  continuation). Annual reports (有価証券報告書) only in this release.
+- New `_narrative` module with semantic XBRL context selection (prefers
+  dimensionless, current-period contexts; deterministic tie-breaks) and an
+  HTML→text converter that preserves headings, paragraphs, lists, table rows,
+  and image alt text while dropping styles/scripts. Design reviewed with
+  gpt-5.3-codex (thread 019f6fe5-af9d-7f01-b25f-8b6122615b85): HTML is taken
+  directly from the XML parser without a second `html.unescape()` pass, so
+  double-escaped literals survive intact.
+- `EdinetClient._resolve_filing()` — filing resolution shared by statements
+  and narratives instead of duplicated logic.
+
 ## [0.7.0] - 2026-07-17
 
 ### Added

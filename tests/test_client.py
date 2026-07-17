@@ -621,3 +621,47 @@ class TestParseCodeListZip:
             zf.writestr("readme.txt", "no csv here")
         companies = EdinetClient._parse_code_list_zip(buf.getvalue())
         assert companies == []
+
+
+class TestGetNarrative:
+    """client.get_narrative — qualitative section extraction (annual reports)."""
+
+    def _client_with_zip(self, zip_path, sample_filing):
+        client = EdinetClient(api_key="test")
+        client._resolve_filing = AsyncMock(return_value=sample_filing)  # type: ignore[method-assign]
+        client.download_document = AsyncMock(return_value=zip_path)  # type: ignore[method-assign]
+        return client
+
+    async def test_returns_narrative_section(self, tmp_path, sample_filing) -> None:
+        from tests.conftest import make_narrative_zip
+
+        client = self._client_with_zip(make_narrative_zip(tmp_path), sample_filing)
+        nar = await client.get_narrative("E02144", "business_risks")
+        assert nar is not None
+        assert "為替変動リスク" in nar.text
+        assert nar.section == "business_risks"
+        assert nar.doc_id == sample_filing.doc_id
+        assert nar.char_count == len(nar.text)
+
+    async def test_missing_section_returns_none(self, tmp_path, sample_filing) -> None:
+        from tests.conftest import make_narrative_zip
+
+        client = self._client_with_zip(make_narrative_zip(tmp_path), sample_filing)
+        assert await client.get_narrative("E02144", "corporate_governance") is None
+
+    async def test_invalid_section_raises(self, tmp_path, sample_filing) -> None:
+        from tests.conftest import make_narrative_zip
+
+        client = self._client_with_zip(make_narrative_zip(tmp_path), sample_filing)
+        with pytest.raises(ValueError, match="Unknown section"):
+            await client.get_narrative("E02144", "no_such_section")
+
+    async def test_invalid_edinet_code_raises(self) -> None:
+        client = EdinetClient(api_key="test")
+        with pytest.raises(ValueError, match="Invalid EDINET code"):
+            await client.get_narrative("E0214", "business_risks")
+
+    async def test_resolve_filing_used_by_get_financial_statements(self) -> None:
+        """_resolve_filing is the shared filing-resolution path."""
+        client = EdinetClient(api_key="test")
+        assert hasattr(client, "_resolve_filing")

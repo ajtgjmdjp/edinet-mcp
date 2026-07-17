@@ -29,7 +29,8 @@ Part of the [Japan Finance Data Stack](https://github.com/ajtgjmdjp/awesome-japa
 - Parse XBRL into Polars/pandas DataFrames (BS, PL, CF)
 - **Multi-company screening**: Compare financial metrics across up to 20 companies
 - **Cross-period diff (xbrl-diff)**: Compare financial statements across periods with change amounts (増減額) and growth rates (増減率)
-- MCP server with 9 tools for Claude Desktop and other AI tools
+- **Narrative sections**: extract 事業等のリスク, MD&A, 経営方針 and more as plain text (`get_narrative`)
+- MCP server with 10 tools for Claude Desktop and other AI tools
 
 ### Why edinet-mcp?
 
@@ -89,6 +90,24 @@ async def main():
 
         # Export as DataFrame
         print(stmt.income_statement.to_polars())
+
+asyncio.run(main())
+```
+
+### Narrative Sections (定性情報)
+
+```python
+import asyncio
+from edinet_mcp import EdinetClient
+
+async def main():
+    async with EdinetClient() as client:
+        # 事業等のリスク as plain text
+        risks = await client.get_narrative("E02144", "business_risks")
+        print(risks.text[:200])
+
+        # Other sections: mdna, business_policy, description_of_business,
+        # corporate_governance, research_and_development
 
 asyncio.run(main())
 ```

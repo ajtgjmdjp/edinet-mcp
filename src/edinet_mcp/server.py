@@ -33,6 +33,7 @@ from fastmcp import FastMCP
 
 from edinet_mcp._diff import diff_statements as _diff_statements
 from edinet_mcp._metrics import calculate_metrics, compare_periods
+from edinet_mcp._narrative import NARRATIVE_SECTIONS
 from edinet_mcp._normalize import get_label_aliases, get_taxonomy_labels
 from edinet_mcp._screening import screen_companies as _screen_companies
 from edinet_mcp.client import EdinetClient
@@ -124,6 +125,7 @@ mcp = FastMCP(
         "- get_financial_metrics: Get calculated ratios (ROE, ROA, margins)\n"
         "- compare_financial_periods: Get year-over-year changes\n"
         "- screen_companies: Compare metrics across multiple companies\n"
+        "- get_narrative: Get qualitative sections (事業等のリスク, MD&A, 経営方針)\n"
         "- list_available_labels: See which labels are available\n\n"
         "IMPORTANT: The 'period' parameter is the FILING year, not fiscal year. "
         "Japanese companies with March fiscal year-end file annual reports in "
@@ -541,4 +543,85 @@ async def diff_financial_statements(
         "accounting_standard": result["accounting_standard"],
         "diffs": result["diffs"][:50],  # Limit output size for MCP
         "summary": result["summary"],
+    }
+
+
+_MAX_NARRATIVE_CHARS = 50_000
+
+
+@mcp.tool()
+async def get_narrative(
+    edinet_code: Annotated[
+        str,
+        Field(description="企業のEDINETコード (例: 'E02144')"),
+    ],
+    section: Annotated[
+        str,
+        Field(
+            description=(
+                "Narrative section: 'business_risks' (事業等のリスク), "
+                "'mdna' (経営者による財政状態・経営成績・キャッシュフローの分析), "
+                "'business_policy' (経営方針・経営環境・対処すべき課題), "
+                "'description_of_business' (事業の内容), "
+                "'corporate_governance' (コーポレート・ガバナンスの概要), "
+                "'research_and_development' (研究開発活動)"
+            )
+        ),
+    ],
+    period: Annotated[
+        CoercedStr,
+        Field(description=("書類が提出された年 (例: '2025')。省略時は直近の有価証券報告書")),
+    ] = None,
+    max_chars: Annotated[
+        int,
+        Field(description="Maximum characters to return per call (default 10000, max 50000)"),
+    ] = 10_000,
+    offset: Annotated[
+        int,
+        Field(description="Character offset to start from, for paging long sections"),
+    ] = 0,
+) -> dict[str, Any]:
+    """Get a qualitative narrative section from a company's annual report.
+
+    Extracts sections like 事業等のリスク or MD&A from the 有価証券報告書
+    as plain text. Annual reports (有価証券報告書) only.
+
+    Long sections are paged: if 'truncated' is true, call again with
+    offset='next_offset' to continue reading.
+    """
+    if section not in NARRATIVE_SECTIONS:
+        msg = f"Invalid section: {section!r}. Must be one of {sorted(NARRATIVE_SECTIONS)}"
+        raise ValueError(msg)
+    if offset < 0:
+        msg = f"offset must be >= 0, got {offset}"
+        raise ValueError(msg)
+    if not 1 <= max_chars <= _MAX_NARRATIVE_CHARS:
+        msg = f"max_chars must be between 1 and {_MAX_NARRATIVE_CHARS}, got {max_chars}"
+        raise ValueError(msg)
+
+    client = await _get_client()
+    narrative = await client.get_narrative(edinet_code, section, period=period)
+    if narrative is None:
+        return {
+            "available": False,
+            "section": section,
+            "message": "Section not present in the filing",
+        }
+
+    total = narrative.char_count
+    page = narrative.text[offset : offset + max_chars]
+    end = offset + len(page)
+    truncated = end < total
+    return {
+        "available": True,
+        "section": narrative.section,
+        "doc_id": narrative.doc_id,
+        "filing_date": narrative.filing_date.isoformat(),
+        "context_ref": narrative.context_ref,
+        "text": page,
+        "offset": offset,
+        "returned_chars": len(page),
+        "total_chars": total,
+        "truncated": truncated,
+        "next_offset": end if truncated else None,
     }

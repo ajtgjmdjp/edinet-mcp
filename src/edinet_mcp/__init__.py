@@ -29,6 +29,7 @@ from edinet_mcp._metrics import (
     calculate_metrics,
     compare_periods,
 )
+from edinet_mcp._narrative import NARRATIVE_SECTIONS, html_to_text
 from edinet_mcp._normalize import get_taxonomy_labels, normalize_statement
 from edinet_mcp._screening import screen_companies
 from edinet_mcp._validation import FinancialDataWarning, validate_financial_statement
@@ -40,6 +41,7 @@ from edinet_mcp.models import (
     Filing,
     FinancialStatement,
     MetricCategory,
+    NarrativeSection,
     PeriodLabel,
     StatementData,
     StatementType,
@@ -51,6 +53,7 @@ from edinet_mcp.parser import XBRLParser
 logging.getLogger("edinet_mcp").addHandler(logging.NullHandler())
 
 __all__ = [
+    "NARRATIVE_SECTIONS",
     "AccountingStandard",
     "CashFlowMetrics",
     "Company",
@@ -66,6 +69,7 @@ __all__ = [
     "GrowthMetrics",
     "LineItemDiff",
     "MetricCategory",
+    "NarrativeSection",
     "PeriodComparison",
     "PeriodLabel",
     "ProfitabilityMetrics",
@@ -78,9 +82,10 @@ __all__ = [
     "compare_periods",
     "diff_statements",
     "get_taxonomy_labels",
+    "html_to_text",
     "normalize_statement",
     "screen_companies",
     "validate_financial_statement",
 ]
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"

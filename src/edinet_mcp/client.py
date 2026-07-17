@@ -35,6 +35,7 @@ import httpx
 
 from edinet_mcp._cache import DiskCache
 from edinet_mcp._config import get_settings
+from edinet_mcp._narrative import NARRATIVE_SECTIONS, extract_narratives
 from edinet_mcp._normalize import normalize_statement
 from edinet_mcp._rate_limiter import RateLimiter
 from edinet_mcp._validation import validate_financial_statement
@@ -43,6 +44,7 @@ from edinet_mcp.models import (
     DocType,
     Filing,
     FinancialStatement,
+    NarrativeSection,
 )
 from edinet_mcp.parser import XBRLParser
 
@@ -453,7 +455,24 @@ class EdinetClient:
         if period:
             _validate_period(period)
 
-        # Find the filing — use smart search for period queries
+        filing = await self._resolve_filing(edinet_code, doc_type, period)
+
+        # Download and parse
+        zip_path = await self.download_document(filing.doc_id, format="xbrl")
+        return self._parse_filing(filing, zip_path)
+
+    async def _resolve_filing(
+        self,
+        edinet_code: str,
+        doc_type: str | DocType,
+        period: str | None,
+    ) -> Filing:
+        """Find the most recent matching filing for a company.
+
+        Uses month-priority search when *period* is given, otherwise
+        scans the trailing two years. Shared by statement and narrative
+        retrieval.
+        """
         if period:
             filing = await self._find_filing_for_period(edinet_code, int(period), doc_type)
         else:
@@ -470,10 +489,69 @@ class EdinetClient:
                 raise ValueError(msg)
             filing = sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
         logger.info(f"Using filing {filing.doc_id} ({filing.description})")
+        return filing
 
-        # Download and parse
+    async def get_narrative(
+        self,
+        edinet_code: str,
+        section: str,
+        *,
+        period: str | None = None,
+    ) -> NarrativeSection | None:
+        """Fetch a qualitative narrative section from an annual report.
+
+        Extracts sections like 事業等のリスク (``"business_risks"``) or MD&A
+        (``"mdna"``) from the filing's XBRL instance as plain text.
+        v0.8 supports annual reports (有価証券報告書) only — other document
+        types define these sections differently or not at all.
+
+        Args:
+            edinet_code: Company's EDINET code (e.g. ``"E02144"``).
+            section: One of :data:`edinet_mcp._narrative.NARRATIVE_SECTIONS`
+                keys (``business_risks``, ``mdna``, ``business_policy``,
+                ``description_of_business``, ``corporate_governance``,
+                ``research_and_development``).
+            period: Filing year to target (e.g. ``"2025"``). If ``None``,
+                uses the most recent annual report.
+
+        Returns:
+            :class:`NarrativeSection`, or ``None`` if the filing does not
+            contain the section.
+
+        Raises:
+            ValueError: For invalid parameters or when no filing is found.
+        """
+        _validate_edinet_code(edinet_code)
+        if period:
+            _validate_period(period)
+        if section not in NARRATIVE_SECTIONS:
+            msg = f"Unknown section: {section!r}. Valid: {sorted(NARRATIVE_SECTIONS)}"
+            raise ValueError(msg)
+
+        filing = await self._resolve_filing(edinet_code, "annual_report", period)
         zip_path = await self.download_document(filing.doc_id, format="xbrl")
-        return self._parse_filing(filing, zip_path)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                _safe_extractall(zf, tmp)
+
+            instances = sorted((tmp / "XBRL" / "PublicDoc").glob("*.xbrl"))
+            for instance in instances:
+                found = extract_narratives(instance, [section], period_end=filing.period_end)
+                if section in found:
+                    extracted = found[section]
+                    return NarrativeSection(
+                        section=extracted.section,
+                        element=extracted.element,
+                        text=extracted.text,
+                        context_ref=extracted.context_ref,
+                        doc_id=filing.doc_id,
+                        filing_date=filing.filing_date,
+                        period_start=extracted.period_start,
+                        period_end=extracted.period_end,
+                    )
+        return None
 
     async def _find_filing_for_period(
         self,

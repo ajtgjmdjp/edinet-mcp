@@ -321,6 +321,42 @@ class FinancialStatement(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Narrative sections
+# ---------------------------------------------------------------------------
+
+
+class NarrativeSection(BaseModel):
+    """A qualitative narrative section from a 有価証券報告書.
+
+    Attributes:
+        section: Section key (e.g. ``"business_risks"``).
+        element: Source XBRL element local name.
+        text: Plain text content (HTML converted).
+        context_ref: XBRL context id the text was taken from (provenance).
+        doc_id: Source EDINET document id.
+        filing_date: Date the source document was filed.
+        period_start: Context period start, if the context has a duration.
+        period_end: Context period end, if the context has a duration.
+    """
+
+    section: str
+    element: str
+    text: str
+    context_ref: str
+    doc_id: str
+    filing_date: datetime.date
+    period_start: datetime.date | None = None
+    period_end: datetime.date | None = None
+
+    model_config = {"frozen": True}
+
+    @property
+    def char_count(self) -> int:
+        """Number of characters in :attr:`text`."""
+        return len(self.text)
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

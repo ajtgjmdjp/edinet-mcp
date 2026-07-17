@@ -94,3 +94,21 @@ class TestCacheTTL:
 
         result = cache.get_file("ns", {"k": "v"}, suffix=".bin", max_age=3600)
         assert result is None
+
+
+class TestCorruptCache:
+    """A corrupt JSON cache entry must behave as a miss, not crash forever."""
+
+    def test_corrupt_json_treated_as_miss_and_removed(self, tmp_path: Path) -> None:
+        cache = DiskCache(tmp_path)
+        path = cache.put_json("filings", {"date": "2026-07-17"}, {"ok": True})
+        path.write_text("{not valid json", encoding="utf-8")
+
+        assert cache.get_json("filings", {"date": "2026-07-17"}) is None
+        # The poisoned entry is deleted so the next fetch can repopulate it
+        assert not path.exists()
+
+    def test_valid_json_still_returned(self, tmp_path: Path) -> None:
+        cache = DiskCache(tmp_path)
+        cache.put_json("filings", {"date": "2026-07-17"}, {"ok": True})
+        assert cache.get_json("filings", {"date": "2026-07-17"}) == {"ok": True}

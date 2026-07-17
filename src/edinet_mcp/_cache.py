@@ -43,11 +43,18 @@ class DiskCache:
             max_age: Maximum age in seconds. ``None`` means no expiry.
         """
         path = self._dir / namespace / f"{self._key(namespace, params)}.json"
-        if not path.exists():
+        try:
+            if max_age is not None and (time.time() - path.stat().st_mtime) > max_age:
+                return None
+            return json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
             return None
-        if max_age is not None and (time.time() - path.stat().st_mtime) > max_age:
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+            # A corrupt entry (partial write, disk issue) must act as a
+            # cache miss and be removed so the next fetch repopulates it —
+            # otherwise every call fails until manual cleanup.
+            path.unlink(missing_ok=True)
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
 
     def put_json(self, namespace: str, params: dict[str, Any], data: Any) -> Path:
         """Store a JSON response in the cache. Returns the file path."""

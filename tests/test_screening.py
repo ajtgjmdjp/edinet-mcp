@@ -172,3 +172,27 @@ class TestScreenCompanies:
         assert result["count"] == 0
         assert result["results"] == []
         assert len(result["errors"]) == 2
+
+
+class TestSortMissingMetrics:
+    """Missing sort metrics must go last regardless of sort direction."""
+
+    @staticmethod
+    def _rows() -> list[dict[str, object]]:
+        return [
+            {"edinet_code": "A_MISSING", "profitability": {}},
+            {"edinet_code": "B_LOW", "profitability": {"ROE": "5.00%"}},
+            {"edinet_code": "C_HIGH", "profitability": {"ROE": "15.00%"}},
+        ]
+
+    def test_missing_goes_last_when_descending(self) -> None:
+        from edinet_mcp._screening import _sort_by_metric
+
+        out = _sort_by_metric(self._rows(), "ROE", True)
+        assert [r["edinet_code"] for r in out] == ["C_HIGH", "B_LOW", "A_MISSING"]
+
+    def test_missing_goes_last_when_ascending(self) -> None:
+        from edinet_mcp._screening import _sort_by_metric
+
+        out = _sort_by_metric(self._rows(), "ROE", False)
+        assert [r["edinet_code"] for r in out] == ["B_LOW", "C_HIGH", "A_MISSING"]

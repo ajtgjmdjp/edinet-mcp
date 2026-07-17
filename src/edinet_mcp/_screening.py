@@ -134,10 +134,10 @@ def _sort_by_metric(
                 return None
         return None
 
-    def _sort_key(row: dict[str, Any]) -> tuple[int, float]:
-        val = _extract_sort_value(row)
-        if val is None:
-            return (1, 0.0)  # Missing values go to the end
-        return (0, val)
-
-    return sorted(results, key=_sort_key, reverse=descending)
+    # Partition first: with a single reversed sort, a "missing" marker key
+    # would jump to the FRONT when descending. Missing values must stay at
+    # the end regardless of sort direction.
+    valued = [(v, row) for row in results if (v := _extract_sort_value(row)) is not None]
+    missing = [row for row in results if _extract_sort_value(row) is None]
+    valued.sort(key=lambda pair: pair[0], reverse=descending)
+    return [row for _, row in valued] + missing

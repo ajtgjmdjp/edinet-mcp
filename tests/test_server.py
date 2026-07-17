@@ -9,6 +9,7 @@ import pytest
 from edinet_mcp.models import (
     AccountingStandard,
     FinancialStatement,
+    StatementData,
 )
 from edinet_mcp.server import (
     compare_financial_periods,
@@ -186,3 +187,63 @@ class TestScreenCompanies:
             pytest.raises(ValueError, match="Too many companies"),
         ):
             await _screen_companies(codes)
+
+
+class TestGetFinancialStatementsEnglish:
+    """language='en' renders normalized rows with English keys."""
+
+    @staticmethod
+    def _client_with(statement: FinancialStatement) -> MagicMock:
+        client = MagicMock()
+        client.get_financial_statements = AsyncMock(return_value=statement)
+        return client
+
+    async def test_language_en_translates_labels_and_periods(self, sample_filing):
+        stmt = FinancialStatement(
+            filing=sample_filing,
+            income_statement=StatementData(
+                items=[{"科目": "売上高", "当期": 100, "前期": 90}],
+                label="IncomeStatement",
+            ),
+        )
+        with patch("edinet_mcp.server._get_client", return_value=self._client_with(stmt)):
+            result = await _get_financial_statements("E02144", language="en")
+        assert result["income_statement"] == [{"label": "Revenue", "current": 100, "prior": 90}]
+
+    async def test_language_en_uses_statement_scoped_translation(self, sample_filing):
+        stmt = FinancialStatement(
+            filing=sample_filing,
+            cash_flow_statement=StatementData(
+                items=[{"科目": "減損損失", "当期": 1}],
+                label="CashFlowStatement",
+            ),
+        )
+        with patch("edinet_mcp.server._get_client", return_value=self._client_with(stmt)):
+            result = await _get_financial_statements("E02144", language="en")
+        assert result["cash_flow_statement"] == [{"label": "Impairment Loss (CF)", "current": 1}]
+
+    async def test_language_en_keeps_unmapped_labels_japanese(self, sample_filing):
+        stmt = FinancialStatement(
+            filing=sample_filing,
+            income_statement=StatementData(
+                items=[{"科目": "独自科目", "当期": 1}],
+                label="IncomeStatement",
+            ),
+        )
+        with patch("edinet_mcp.server._get_client", return_value=self._client_with(stmt)):
+            result = await _get_financial_statements("E02144", language="en")
+        assert result["income_statement"] == [{"label": "独自科目", "current": 1}]
+
+    async def test_default_language_is_japanese(self, mock_client):
+        with patch("edinet_mcp.server._get_client", return_value=mock_client):
+            result = await _get_financial_statements("E02144")
+        assert "income_statement" in result
+        # Raw (non-normalized) rows pass through untouched by default
+        assert result["income_statement"][0].get("element") == "Revenue"
+
+    async def test_invalid_language_raises(self, mock_client):
+        with (
+            patch("edinet_mcp.server._get_client", return_value=mock_client),
+            pytest.raises(ValueError, match="Invalid language"),
+        ):
+            await _get_financial_statements("E02144", language="fr")

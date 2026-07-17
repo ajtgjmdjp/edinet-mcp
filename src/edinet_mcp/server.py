@@ -33,7 +33,7 @@ from fastmcp import FastMCP
 
 from edinet_mcp._diff import diff_statements as _diff_statements
 from edinet_mcp._metrics import calculate_metrics, compare_periods
-from edinet_mcp._normalize import get_taxonomy_labels
+from edinet_mcp._normalize import get_label_aliases, get_taxonomy_labels
 from edinet_mcp._screening import screen_companies as _screen_companies
 from edinet_mcp.client import EdinetClient
 
@@ -47,6 +47,37 @@ def _coerce_str(v: Any) -> str | None:
 
 # Period type that accepts both str and int from MCP clients
 CoercedStr = Annotated[str | None, BeforeValidator(_coerce_str)]
+
+# Statement name (as used in FinancialStatement.all_statements) -> taxonomy key
+_STATEMENT_TAXONOMY_KEYS = {
+    "income_statement": "income_statement",
+    "balance_sheet": "balance_sheet",
+    "cash_flow_statement": "cash_flow",
+}
+
+# Period column names for English output
+_PERIOD_KEYS_EN = {"当期": "current", "前期": "prior", "前々期": "prior_2"}
+
+
+def _render_rows_en(rows: list[dict[str, Any]], statement_name: str) -> list[dict[str, Any]]:
+    """Render normalized rows with English keys and line item names.
+
+    ``{"科目": "売上高", "当期": 100}`` becomes ``{"label": "Revenue", "current": 100}``.
+    Labels without an English translation keep their Japanese form; non-period
+    keys pass through unchanged.
+    """
+    ja_to_en = get_label_aliases(_STATEMENT_TAXONOMY_KEYS.get(statement_name))[1]
+    rendered: list[dict[str, Any]] = []
+    for row in rows:
+        out: dict[str, Any] = {}
+        for key, value in row.items():
+            if key == "科目":
+                out["label"] = ja_to_en.get(value, value)
+            else:
+                out[_PERIOD_KEYS_EN.get(key, key)] = value
+        rendered.append(out)
+    return rendered
+
 
 # Lazily initialized client with lock for concurrent-safe access
 _client: EdinetClient | None = None
@@ -191,15 +222,30 @@ async def get_financial_statements(
             )
         ),
     ] = "annual_report",
+    language: Annotated[
+        str,
+        Field(
+            description=(
+                "Output language for line item labels: 'ja' (科目/当期/前期, default) "
+                "or 'en' (label/current/prior with English line item names)"
+            )
+        ),
+    ] = "ja",
 ) -> dict[str, Any]:
     """Retrieve and parse financial statements (BS, PL, CF) for a company.
 
-    Returns normalized financial data with Japanese labels.
-    Each line item has 当期 (current) and 前期 (previous) values.
+    Returns normalized financial data. With language='ja' (default), each
+    line item has 科目 (label), 当期 (current) and 前期 (previous) values.
+    With language='en', rows use English keys and line item names.
 
-    Example response:
+    Example response (ja):
       income_statement: [{"科目": "売上高", "当期": 45095325, "前期": 37154298}, ...]
+    Example response (en):
+      income_statement: [{"label": "Revenue", "current": 45095325, "prior": 37154298}, ...]
     """
+    if language not in ("ja", "en"):
+        msg = f"Invalid language: {language!r}. Must be 'ja' or 'en'"
+        raise ValueError(msg)
     client = await _get_client()
     stmt = await client.get_financial_statements(
         edinet_code=edinet_code,
@@ -211,7 +257,8 @@ async def get_financial_statements(
         "accounting_standard": stmt.accounting_standard.value,
     }
     for name, data in stmt.all_statements.items():
-        result[name] = data.to_dicts()
+        rows = data.to_dicts()
+        result[name] = _render_rows_en(rows, name) if language == "en" else rows
     return result
 
 

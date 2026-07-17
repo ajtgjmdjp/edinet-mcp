@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-17
+
 ### Added
+- **Bilingual (English/Japanese) line item access**: `stmt.income_statement["Revenue"]`
+  now works alongside `stmt.income_statement["売上高"]` (case-insensitive), backed by
+  the `label_en` fields already present in the taxonomy. New `StatementData.labels_en`
+  property lists English labels, using statement-scoped translations so labels that
+  appear in both PL and CF (e.g. 減損損失 → "Impairment Loss" vs "Impairment Loss (CF)")
+  resolve correctly.
+- **`language='en'` option on the `get_financial_statements` MCP tool**: renders
+  normalized rows with English keys and line item names —
+  `{"label": "Revenue", "current": ..., "prior": ...}` instead of
+  `{"科目": "売上高", "当期": ..., "前期": ...}`. Default output is unchanged.
+- `get_label_aliases()` helper in `_normalize` exposing cached EN↔JA label maps,
+  globally or scoped per statement type.
 - **All supported `doc_type` values are now documented in the MCP tool
   descriptions and README**: `semiannual_report` (半期報告書, code 160),
   `extraordinary_report` (臨時報告書, code 180), and `large_shareholding`

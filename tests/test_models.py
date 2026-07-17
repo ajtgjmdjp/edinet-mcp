@@ -155,3 +155,52 @@ class TestParseDate:
         # The one with a real date should sort as more recent
         filings = sorted([f2, f1], key=lambda f: f.filing_date, reverse=True)
         assert filings[0].doc_id == "S100AAA1"
+
+
+class TestEnglishLabelAccess:
+    """Bilingual (English/Japanese) line item access on StatementData."""
+
+    @pytest.fixture
+    def stmt_data(self) -> StatementData:
+        return StatementData(
+            items=[
+                {"科目": "売上高", "当期": 45095325, "前期": 37154298},
+                {"科目": "営業利益", "当期": 5352934, "前期": 2725025},
+            ],
+            label="IncomeStatement",
+        )
+
+    def test_english_lookup_matches_japanese(self, stmt_data: StatementData) -> None:
+        assert stmt_data["Revenue"] == stmt_data["売上高"]
+        assert stmt_data["Operating Income"] == stmt_data["営業利益"]
+
+    def test_english_lookup_is_case_insensitive(self, stmt_data: StatementData) -> None:
+        assert stmt_data["revenue"] == stmt_data["売上高"]
+        assert stmt_data["OPERATING INCOME"] == stmt_data["営業利益"]
+
+    def test_get_with_english_label(self, stmt_data: StatementData) -> None:
+        assert stmt_data.get("Revenue") == {"当期": 45095325, "前期": 37154298}
+        assert stmt_data.get("Total Assets") is None
+
+    def test_unknown_label_raises_keyerror(self, stmt_data: StatementData) -> None:
+        with pytest.raises(KeyError):
+            stmt_data["No Such Label"]
+
+    def test_labels_en_property(self, stmt_data: StatementData) -> None:
+        assert stmt_data.labels_en == ["Revenue", "Operating Income"]
+
+    def test_labels_en_falls_back_to_japanese(self) -> None:
+        sd = StatementData(items=[{"科目": "独自科目", "当期": 1}])
+        assert sd.labels_en == ["独自科目"]
+
+    def test_labels_en_uses_statement_scoped_translation(self) -> None:
+        # 減損損失 renders as "Impairment Loss (CF)" only in cash flow context
+        pl = StatementData(items=[{"科目": "減損損失", "当期": 1}], label="IncomeStatement")
+        cf = StatementData(items=[{"科目": "減損損失", "当期": 1}], label="CashFlowStatement")
+        assert pl.labels_en == ["Impairment Loss"]
+        assert cf.labels_en == ["Impairment Loss (CF)"]
+
+    def test_cf_scoped_english_lookup(self) -> None:
+        cf = StatementData(items=[{"科目": "減損損失", "当期": 1}], label="CashFlowStatement")
+        assert cf["Impairment Loss (CF)"] == {"当期": 1}
+        assert cf["Impairment Loss"] == {"当期": 1}

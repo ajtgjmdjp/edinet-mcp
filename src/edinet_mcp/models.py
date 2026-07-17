@@ -167,6 +167,15 @@ class Filing(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# StatementData.label -> taxonomy key, used to scope English label maps.
+# A few Japanese labels (減損損失 etc.) translate differently in PL vs CF.
+_TAXONOMY_KEYS = {
+    "IncomeStatement": "income_statement",
+    "BalanceSheet": "balance_sheet",
+    "CashFlowStatement": "cash_flow",
+}
+
+
 class StatementData(BaseModel):
     """A single financial statement (BS / PL / CF).
 
@@ -187,14 +196,28 @@ class StatementData(BaseModel):
     label: str = ""
 
     def __getitem__(self, label: str) -> dict[str, Any]:
-        """Look up a line item by its Japanese label.
+        """Look up a line item by its Japanese or English label.
+
+        English lookup is case-insensitive.
 
         >>> stmt.income_statement["売上高"]
+        {"当期": 45095325, "前期": 37154298}
+        >>> stmt.income_statement["Revenue"]
         {"当期": 45095325, "前期": 37154298}
         """
         for item in self.items:
             if item.get("科目") == label:
                 return {k: v for k, v in item.items() if k != "科目"}
+
+        # English alias fallback (lazy import to avoid a circular import:
+        # _normalize imports models at module load time)
+        from edinet_mcp._normalize import get_label_aliases
+
+        japanese = get_label_aliases()[0].get(label.lower())
+        if japanese is not None and japanese != label:
+            for item in self.items:
+                if item.get("科目") == japanese:
+                    return {k: v for k, v in item.items() if k != "科目"}
         raise KeyError(f"'{label}' not found in {self.label}")
 
     def get(self, label: str, default: Any = None) -> Any:
@@ -208,6 +231,18 @@ class StatementData(BaseModel):
     def labels(self) -> list[str]:
         """Return all available line item labels (科目)."""
         return [item["科目"] for item in self.items if "科目" in item]
+
+    @property
+    def labels_en(self) -> list[str]:
+        """Return English labels for available line items.
+
+        Items without an English mapping keep their Japanese label.
+        """
+        from edinet_mcp._normalize import get_label_aliases
+
+        statement_key = _TAXONOMY_KEYS.get(self.label)
+        ja_to_en = get_label_aliases(statement_key)[1]
+        return [ja_to_en.get(item["科目"], item["科目"]) for item in self.items if "科目" in item]
 
     def to_polars(self) -> pl.DataFrame:
         """Convert to a Polars DataFrame."""

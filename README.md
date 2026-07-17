@@ -24,11 +24,19 @@ Part of the [Japan Finance Data Stack](https://github.com/ajtgjmdjp/awesome-japa
 - Search 5,000+ listed Japanese companies
 - Retrieve annual/quarterly/semiannual reports (有価証券報告書, 四半期報告書, 半期報告書) plus extraordinary (臨時報告書) and large shareholding (大量保有報告書) filings
 - **Automatic normalization**: `stmt["売上高"]` works regardless of accounting standard
+- **Bilingual labels**: `stmt["Revenue"]` works too (case-insensitive), and the MCP tool supports `language='en'` for fully English output
 - Financial metrics (ROE, ROA, profit margins) and year-over-year comparisons
 - Parse XBRL into Polars/pandas DataFrames (BS, PL, CF)
 - **Multi-company screening**: Compare financial metrics across up to 20 companies
 - **Cross-period diff (xbrl-diff)**: Compare financial statements across periods with change amounts (増減額) and growth rates (増減率)
 - MCP server with 9 tools for Claude Desktop and other AI tools
+
+### Why edinet-mcp?
+
+Unlike commercial EDINET data APIs, edinet-mcp is **fully free and local**: the
+XBRL parser runs on your machine, the only credential you need is a free EDINET
+API key from the FSA, and every number is traceable to the original filing.
+No paid tiers, no usage caps beyond EDINET's own rate limits, Apache-2.0 licensed.
 
 ## Quick Start
 
@@ -69,6 +77,11 @@ async def main():
         # Dict-like access — works for J-GAAP, IFRS, and US-GAAP
         revenue = stmt.income_statement["売上高"]
         print(revenue)  # {"当期": 45095325000000, "前期": 37154298000000}
+
+        # English labels work too (case-insensitive)
+        assert stmt.income_statement["Revenue"] == revenue
+        print(stmt.income_statement.labels_en)
+        # ["Revenue", "Cost of Sales", "Gross Profit", ...]
 
         # See all available line items
         print(stmt.income_statement.labels)

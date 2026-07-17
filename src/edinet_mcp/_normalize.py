@@ -137,7 +137,7 @@ def _extract_value(item: dict[str, Any]) -> int | float | None:
         val = item.get(key)
         if val is None or val == "":
             continue
-        if isinstance(val, (int, float)):
+        if isinstance(val, int | float):
             return val
         try:
             cleaned = str(val).replace(",", "")
@@ -269,6 +269,48 @@ def get_taxonomy_labels(
     return [
         {"id": item["id"], "label": item["label"], "label_en": item["label_en"]} for item in items
     ]
+
+
+_alias_cache: dict[str | None, tuple[dict[str, str], dict[str, str]]] = {}
+
+
+def get_label_aliases(
+    statement_key: str | None = None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return bilingual label maps built from the taxonomy.
+
+    Args:
+        statement_key: Taxonomy key (``"income_statement"``,
+            ``"balance_sheet"``, ``"cash_flow"``) to scope the maps to a
+            single statement, or ``None`` for global maps.
+
+    Returns:
+        Tuple of ``(en_to_ja, ja_to_en)`` where ``en_to_ja`` keys are
+        lowercased English labels (e.g. ``"revenue"`` -> ``"売上高"``)
+        and ``ja_to_en`` maps Japanese labels to their English form
+        (e.g. ``"売上高"`` -> ``"Revenue"``). Cached after first call.
+
+    English labels are unique across all statement types, so the global
+    ``en_to_ja`` map is unambiguous. A few Japanese labels (e.g. 減損損失)
+    appear in both PL and CF with different English forms — the global
+    ``ja_to_en`` map prefers the first occurrence in taxonomy order (PL);
+    pass ``statement_key`` for exact per-statement translations.
+    """
+    if statement_key in _alias_cache:
+        return _alias_cache[statement_key]
+
+    taxonomy = _load_taxonomy()
+    sources = (
+        list(taxonomy.values()) if statement_key is None else [taxonomy.get(statement_key, [])]
+    )
+    en_to_ja: dict[str, str] = {}
+    ja_to_en: dict[str, str] = {}
+    for items in sources:
+        for item in items:
+            en_to_ja[item["label_en"].lower()] = item["label"]
+            ja_to_en.setdefault(item["label"], item["label_en"])
+    _alias_cache[statement_key] = (en_to_ja, ja_to_en)
+    return _alias_cache[statement_key]
 
 
 def normalize_statement(stmt: FinancialStatement) -> FinancialStatement:

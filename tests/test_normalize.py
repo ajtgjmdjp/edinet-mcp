@@ -11,6 +11,7 @@ from edinet_mcp._normalize import (
     _load_taxonomy,
     _normalize_items,
     _strip_edinet_suffixes,
+    get_label_aliases,
     get_taxonomy_labels,
     normalize_statement,
 )
@@ -443,3 +444,44 @@ class TestGetTaxonomyLabels:
 
     def test_unknown_returns_empty(self) -> None:
         assert get_taxonomy_labels("nonexistent") == []
+
+
+class TestLabelAliases:
+    """English label alias maps built from taxonomy label_en fields."""
+
+    def test_english_to_japanese_lookup(self) -> None:
+        en_to_ja, _ = get_label_aliases()
+        assert en_to_ja["revenue"] == "売上高"
+        assert en_to_ja["operating income"] == "営業利益"
+
+    def test_japanese_to_english_lookup(self) -> None:
+        _, ja_to_en = get_label_aliases()
+        assert ja_to_en["売上高"] == "Revenue"
+        assert ja_to_en["営業利益"] == "Operating Income"
+
+    def test_english_map_covers_all_taxonomy_items(self) -> None:
+        en_to_ja, _ = get_label_aliases()
+        taxonomy = _load_taxonomy()
+        total = sum(len(items) for items in taxonomy.values())
+        # English labels are unique across statements, so the map is complete
+        assert len(en_to_ja) == total
+
+    def test_global_japanese_map_prefers_income_statement(self) -> None:
+        # 減損損失 exists in both PL and CF; global map prefers PL's form
+        _, ja_to_en = get_label_aliases()
+        assert ja_to_en["減損損失"] == "Impairment Loss"
+
+    def test_statement_scoped_maps_disambiguate(self) -> None:
+        _, pl = get_label_aliases("income_statement")
+        _, cf = get_label_aliases("cash_flow")
+        assert pl["減損損失"] == "Impairment Loss"
+        assert cf["減損損失"] == "Impairment Loss (CF)"
+
+    def test_unknown_statement_key_returns_empty_maps(self) -> None:
+        en_to_ja, ja_to_en = get_label_aliases("no_such_statement")
+        assert en_to_ja == {}
+        assert ja_to_en == {}
+
+    def test_cached(self) -> None:
+        assert get_label_aliases() is get_label_aliases()
+        assert get_label_aliases("cash_flow") is get_label_aliases("cash_flow")

@@ -76,6 +76,9 @@ _DOC_LIST_WITH_RESULTS = 2
 # HTTP status codes that warrant a retry
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
+# Maximum entries in the per-client narrative cache
+_NARRATIVE_CACHE_MAX = 64
+
 # ZIP magic bytes
 _ZIP_MAGIC = b"PK"
 
@@ -183,6 +186,9 @@ class EdinetClient:
             headers={"Accept": "application/json"},
         )
         self._parser = XBRLParser()
+        # Bounded FIFO cache of extracted narratives (doc content is
+        # immutable per doc_id); None entries mark known-absent sections
+        self._narrative_cache: dict[tuple[str, str], NarrativeSection | None] = {}
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""
@@ -529,8 +535,17 @@ class EdinetClient:
             raise ValueError(msg)
 
         filing = await self._resolve_filing(edinet_code, "annual_report", period)
+
+        # A document's content is immutable per doc_id, so extracted
+        # narratives can be cached — MCP paging calls get_narrative once
+        # per page and must not re-extract the ZIP every time.
+        cache_key = (filing.doc_id, section)
+        if cache_key in self._narrative_cache:
+            return self._narrative_cache[cache_key]
+
         zip_path = await self.download_document(filing.doc_id, format="xbrl")
 
+        narrative: NarrativeSection | None = None
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             with zipfile.ZipFile(zip_path, "r") as zf:
@@ -538,10 +553,20 @@ class EdinetClient:
 
             instances = sorted((tmp / "XBRL" / "PublicDoc").glob("*.xbrl"))
             for instance in instances:
-                found = extract_narratives(instance, [section], period_end=filing.period_end)
+                try:
+                    found = extract_narratives(
+                        instance,
+                        [section],
+                        period_end=filing.period_end,
+                        filing_date=filing.filing_date,
+                    )
+                except ValueError as exc:
+                    # An invalid instance must not mask a valid sibling
+                    logger.warning("Skipping instance %s: %s", instance.name, exc)
+                    continue
                 if section in found:
                     extracted = found[section]
-                    return NarrativeSection(
+                    narrative = NarrativeSection(
                         section=extracted.section,
                         element=extracted.element,
                         text=extracted.text,
@@ -550,8 +575,14 @@ class EdinetClient:
                         filing_date=filing.filing_date,
                         period_start=extracted.period_start,
                         period_end=extracted.period_end,
+                        source_truncated=extracted.source_truncated,
                     )
-        return None
+                    break
+
+        if len(self._narrative_cache) >= _NARRATIVE_CACHE_MAX:
+            self._narrative_cache.pop(next(iter(self._narrative_cache)))
+        self._narrative_cache[cache_key] = narrative
+        return narrative
 
     async def _find_filing_for_period(
         self,

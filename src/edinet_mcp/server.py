@@ -624,4 +624,5 @@ async def get_narrative(
         "total_chars": total,
         "truncated": truncated,
         "next_offset": end if truncated else None,
+        "source_truncated": narrative.source_truncated,
     }

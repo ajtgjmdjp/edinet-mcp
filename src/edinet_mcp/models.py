@@ -347,6 +347,7 @@ class NarrativeSection(BaseModel):
     filing_date: datetime.date
     period_start: datetime.date | None = None
     period_end: datetime.date | None = None
+    source_truncated: bool = False
 
     model_config = {"frozen": True}
 

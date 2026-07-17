@@ -49,6 +49,25 @@ def _instance(body: str) -> str:
       <xbrli:endDate>2024-03-31</xbrli:endDate>
     </xbrli:period>
   </xbrli:context>
+  <xbrli:context id="CurrentYearDuration_TestMember">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E00001-000</xbrli:identifier>
+      <xbrli:segment>
+        <xbrldi:explicitMember
+            dimension="jpcrp_cor:TestAxis">jpcrp_cor:TestMember</xbrldi:explicitMember>
+      </xbrli:segment>
+    </xbrli:entity>
+    <xbrli:period>
+      <xbrli:startDate>2024-04-01</xbrli:startDate>
+      <xbrli:endDate>2025-03-31</xbrli:endDate>
+    </xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="PriorYearInstant">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E00001-000</xbrli:identifier>
+    </xbrli:entity>
+    <xbrli:period><xbrli:instant>2024-06-20</xbrli:instant></xbrli:period>
+  </xbrli:context>
   <xbrli:context id="FilingDateInstant_TestMember">
     <xbrli:entity>
       <xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E00001-000</xbrli:identifier>
@@ -223,3 +242,78 @@ class TestExtractNarratives:
     def test_invalid_xml_rejected(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="Unsafe or invalid XML"):
             extract_narratives(_write(tmp_path, "not xml at all <<<"), period_end=_PERIOD_END)
+
+
+class TestCodexReviewFindings:
+    """Regression tests for the v0.8.0 Codex code-review findings."""
+
+    def test_oversized_instance_rejected(self, tmp_path: Path, monkeypatch) -> None:
+        from edinet_mcp import _narrative
+
+        monkeypatch.setattr(_narrative, "_MAX_INSTANCE_BYTES", 100)
+        path = _write(tmp_path, _instance(""))
+        with pytest.raises(ValueError, match="too large"):
+            extract_narratives(path, period_end=_PERIOD_END)
+
+    def test_filing_date_instant_beats_prior_instant(self, tmp_path: Path) -> None:
+        body = (
+            '<jpcrp_cor:BusinessRisksTextBlock contextRef="PriorYearInstant">'
+            "&lt;p&gt;prior instant text&lt;/p&gt;</jpcrp_cor:BusinessRisksTextBlock>"
+            '<jpcrp_cor:BusinessRisksTextBlock contextRef="FilingDateInstant">'
+            "&lt;p&gt;filing date text&lt;/p&gt;</jpcrp_cor:BusinessRisksTextBlock>"
+        )
+        result = extract_narratives(
+            _write(tmp_path, _instance(body)),
+            period_end=_PERIOD_END,
+            filing_date=datetime.date(2025, 6, 20),
+        )
+        assert result["business_risks"].text == "filing date text"
+
+    def test_period_class_outranks_dimensions(self, tmp_path: Path) -> None:
+        # A dimensioned current-period context must beat a dimensionless
+        # prior-period one: period semantics rank before dimensions.
+        body = (
+            '<jpcrp_cor:BusinessRisksTextBlock contextRef="Prior1YearDuration">'
+            "&lt;p&gt;prior plain&lt;/p&gt;</jpcrp_cor:BusinessRisksTextBlock>"
+            '<jpcrp_cor:BusinessRisksTextBlock contextRef="CurrentYearDuration_TestMember">'
+            "&lt;p&gt;current dimensioned&lt;/p&gt;</jpcrp_cor:BusinessRisksTextBlock>"
+        )
+        result = extract_narratives(_write(tmp_path, _instance(body)), period_end=_PERIOD_END)
+        assert result["business_risks"].text == "current dimensioned"
+
+    def test_table_cells_with_block_elements_tab_joined(self) -> None:
+        html = "<table><tr><td><p>A</p></td><td><p>B</p></td></tr></table>"
+        out = html_to_text(html)
+        lines = [ln for ln in out.splitlines() if ln]
+        assert lines == ["A\tB"]
+
+    def test_empty_best_candidate_falls_back_to_next(self, tmp_path: Path) -> None:
+        body = (
+            '<jpcrp_cor:BusinessRisksTextBlock contextRef="FilingDateInstant">'
+            "&lt;p&gt; &lt;/p&gt;</jpcrp_cor:BusinessRisksTextBlock>"
+            '<jpcrp_cor:BusinessRisksTextBlock contextRef="FilingDateInstant_TestMember">'
+            "&lt;p&gt;fallback text&lt;/p&gt;</jpcrp_cor:BusinessRisksTextBlock>"
+        )
+        result = extract_narratives(_write(tmp_path, _instance(body)), period_end=_PERIOD_END)
+        assert result["business_risks"].text == "fallback text"
+
+    def test_source_truncated_flag(self, tmp_path: Path, monkeypatch) -> None:
+        from edinet_mcp import _narrative
+
+        monkeypatch.setattr(_narrative, "_MAX_SECTION_CHARS", 5)
+        body = (
+            '<jpcrp_cor:BusinessRisksTextBlock contextRef="FilingDateInstant">'
+            "&lt;p&gt;0123456789&lt;/p&gt;</jpcrp_cor:BusinessRisksTextBlock>"
+        )
+        result = extract_narratives(_write(tmp_path, _instance(body)), period_end=_PERIOD_END)
+        nar = result["business_risks"]
+        assert nar.source_truncated is True
+        assert len(nar.text) == 5
+
+    def test_not_truncated_by_default(self, tmp_path: Path) -> None:
+        body = (
+            '<jpcrp_cor:BusinessRisksTextBlock contextRef="FilingDateInstant">'
+            "&lt;p&gt;short&lt;/p&gt;</jpcrp_cor:BusinessRisksTextBlock>"
+        )
+        result = extract_narratives(_write(tmp_path, _instance(body)), period_end=_PERIOD_END)
+        assert result["business_risks"].source_truncated is False

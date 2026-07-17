@@ -12,9 +12,10 @@ Notes on correctness (informed by real filings):
   ``html.unescape()`` first would turn double-escaped literals into markup
   and silently destroy content.
 - A TextBlock can appear under multiple contexts. Candidates are ranked
-  semantically: contexts without dimension members first, then contexts
-  whose period matches the filing's current period (or a filing-date
-  instant), with the context id as a deterministic tie-break.
+  semantically: period class first (filing-date instant, then current-period
+  duration, then everything else), then absence of dimension members, with
+  the context id as a deterministic tie-break. Candidates whose HTML
+  normalizes to empty text fall back to the next-ranked candidate.
 """
 
 from __future__ import annotations
@@ -46,8 +47,13 @@ NARRATIVE_SECTIONS: dict[str, tuple[str, ...]] = {
     "research_and_development": ("ResearchAndDevelopmentActivitiesTextBlock",),
 }
 
-# Defensive cap on a single section's extracted text
+# Defensive cap on a single section's extracted text. Truncation is
+# reported via ExtractedNarrative.source_truncated, never silent.
 _MAX_SECTION_CHARS = 1_000_000
+
+# Refuse to DOM-parse instances beyond this size (same limit as parser.py's
+# _MAX_XBRL_SIZE; real annual-report instances are ~5 MB)
+_MAX_INSTANCE_BYTES = 50 * 1024 * 1024
 
 _XBRLI_NS = "http://www.xbrl.org/2003/instance"
 
@@ -65,7 +71,8 @@ _SKIP_TAGS = frozenset({"style", "script"})
 class _TextExtractor(HTMLParser):
     """Convert TextBlock HTML to readable plain text.
 
-    Block elements produce line breaks, table cells are tab-joined,
+    Block elements produce line breaks, table cells are tab-joined
+    (cells are buffered so block elements inside a cell stay within it),
     list items get a leading marker, and image alt text is preserved.
     ``style``/``script`` content is discarded.
     """
@@ -74,35 +81,77 @@ class _TextExtractor(HTMLParser):
         super().__init__(convert_charrefs=True)
         self._parts: list[str] = []
         self._skip_depth = 0
+        self._row_cells: list[str] | None = None
+        self._cell_parts: list[str] | None = None
+
+    def _emit(self, fragment: str) -> None:
+        if self._cell_parts is not None:
+            self._cell_parts.append(fragment)
+        else:
+            self._parts.append(fragment)
+
+    def _flush_cell(self) -> None:
+        if self._cell_parts is None:
+            return
+        cell = " ".join("".join(self._cell_parts).split())
+        self._cell_parts = None
+        if self._row_cells is not None:
+            self._row_cells.append(cell)
+        elif cell:
+            self._parts.append(cell + "\n")
+
+    def _flush_row(self) -> None:
+        self._flush_cell()
+        if self._row_cells is None:
+            return
+        cells, self._row_cells = self._row_cells, None
+        if any(cells):
+            self._parts.append("\n" + "\t".join(cells) + "\n")
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in _SKIP_TAGS:
             self._skip_depth += 1
             return
         if tag == "br":
-            self._parts.append("\n")
-        elif tag == "li":
-            self._parts.append("\n- ")
+            self._emit("\n")
+        elif tag == "tr":
+            self._flush_row()
+            self._row_cells = []
         elif tag in ("td", "th"):
-            if self._parts and not self._parts[-1].endswith(("\n", "\t")):
-                self._parts.append("\t")
+            self._flush_cell()
+            if self._row_cells is None:
+                self._row_cells = []
+            self._cell_parts = []
+        elif tag == "li":
+            self._emit("\n- ")
         elif tag in _BLOCK_TAGS:
-            self._parts.append("\n")
+            self._emit("\n")
         elif tag == "img":
             alt = dict(attrs).get("alt")
             if alt:
-                self._parts.append(alt)
+                self._emit(alt)
 
     def handle_endtag(self, tag: str) -> None:
         if tag in _SKIP_TAGS:
             self._skip_depth = max(0, self._skip_depth - 1)
             return
-        if tag in _BLOCK_TAGS:
+        if tag in ("td", "th"):
+            self._flush_cell()
+        elif tag == "tr":
+            self._flush_row()
+        elif tag == "table":
+            self._flush_row()
             self._parts.append("\n")
+        elif tag in _BLOCK_TAGS:
+            self._emit("\n")
 
     def handle_data(self, data: str) -> None:
         if self._skip_depth == 0 and data:
-            self._parts.append(data.replace("\xa0", " "))
+            self._emit(data.replace("\xa0", " "))
+
+    def close(self) -> None:
+        super().close()
+        self._flush_row()
 
     def text(self) -> str:
         raw = "".join(self._parts)
@@ -150,6 +199,7 @@ class ExtractedNarrative:
     context_ref: str
     period_start: datetime.date | None = None
     period_end: datetime.date | None = None
+    source_truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -193,23 +243,38 @@ def _rank(
     context_ref: str,
     contexts: dict[str, _Context],
     period_end: datetime.date | None,
+    filing_date: datetime.date | None,
 ) -> tuple[int, int, str]:
     """Rank a fact's context: lower sorts first.
 
-    Preference order: no dimension members, then current-period match
-    (a duration ending on the filing's period_end, or any instant —
-    narrative blocks use filing-date instants), then context id for a
-    deterministic tie-break.
+    Period semantics rank before dimensions: a dimensioned current-period
+    context must beat a dimensionless prior-period one. Period classes:
+
+    0. Filing-date instant (``instant == filing_date``) — the canonical
+       context for narrative blocks.
+    1. Current-period duration (``end == period_end``).
+    2. Instant with an unknown relationship (no ``filing_date`` given) —
+       likely the filing instant, but unverifiable.
+    3. Anything else (prior periods, unknown durations).
+
+    Context id is the deterministic tie-break.
     """
     ctx = contexts.get(context_ref)
     if ctx is None:
-        return (2, 2, context_ref)
-    dims = 1 if ctx.has_dimensions else 0
-    if ctx.instant is not None or (period_end is not None and ctx.end == period_end):
-        period_score = 0
+        return (4, 1, context_ref)
+    if ctx.instant is not None:
+        if filing_date is None:
+            period_class = 2
+        elif ctx.instant == filing_date:
+            period_class = 0
+        else:
+            period_class = 3
+    elif period_end is not None and ctx.end == period_end:
+        period_class = 1
     else:
-        period_score = 1
-    return (dims, period_score, context_ref)
+        period_class = 3
+    dims = 1 if ctx.has_dimensions else 0
+    return (period_class, dims, context_ref)
 
 
 def extract_narratives(
@@ -217,6 +282,7 @@ def extract_narratives(
     sections: Sequence[str] | None = None,
     *,
     period_end: datetime.date | None = None,
+    filing_date: datetime.date | None = None,
 ) -> dict[str, ExtractedNarrative]:
     """Extract narrative sections from an XBRL instance file.
 
@@ -225,13 +291,16 @@ def extract_narratives(
         sections: Section keys to extract (default: all known sections).
         period_end: The filing's period end date, used to prefer
             current-period contexts over prior-period ones.
+        filing_date: The filing's submission date, used to recognize the
+            filing-date instant context.
 
     Returns:
         Mapping of section key -> :class:`ExtractedNarrative` for every
         section found with non-empty text. Missing sections are absent.
 
     Raises:
-        ValueError: For unknown section keys, or unsafe/invalid XML.
+        ValueError: For unknown section keys, unsafe/invalid XML, or an
+            instance file exceeding the size limit.
     """
     wanted = list(NARRATIVE_SECTIONS) if sections is None else list(sections)
     unknown = [s for s in wanted if s not in NARRATIVE_SECTIONS]
@@ -239,9 +308,20 @@ def extract_narratives(
         msg = f"Unknown section(s): {unknown}. Valid: {sorted(NARRATIVE_SECTIONS)}"
         raise ValueError(msg)
 
-    # element local name -> section key (first alias wins per section)
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        msg = f"Unsafe or invalid XML in {path.name}: {exc}"
+        raise ValueError(msg) from exc
+    if size > _MAX_INSTANCE_BYTES:
+        msg = f"XBRL instance {path.name} too large: {size} bytes > {_MAX_INSTANCE_BYTES} limit"
+        raise ValueError(msg)
+
+    # element local name -> (section key, alias priority index)
     element_to_section = {
-        elem: section for section in wanted for elem in NARRATIVE_SECTIONS[section]
+        elem: (section, idx)
+        for section in wanted
+        for idx, elem in enumerate(NARRATIVE_SECTIONS[section])
     }
 
     try:
@@ -256,13 +336,14 @@ def extract_narratives(
         raise ValueError(msg)
     contexts = _read_contexts(root)
 
-    # Collect candidate facts per section
-    candidates: dict[str, list[tuple[tuple[int, int, str], str, str, str]]] = {}
+    # Collect candidate facts per section, keyed for rank-then-alias ordering
+    candidates: dict[str, list[tuple[tuple[int, int, str], int, str, str, str]]] = {}
     for elem in root.iter():
         local = elem.tag.rsplit("}", 1)[-1]
-        section = element_to_section.get(local)
-        if section is None:
+        mapping = element_to_section.get(local)
+        if mapping is None:
             continue
+        section, alias_idx = mapping
         namespace = elem.tag.rsplit("}", 1)[0].lstrip("{")
         if "jpcrp" not in namespace:
             continue
@@ -270,26 +351,30 @@ def extract_narratives(
         if not content:
             continue
         context_ref = elem.get("contextRef", "")
-        rank = _rank(context_ref, contexts, period_end)
-        candidates.setdefault(section, []).append((rank, local, context_ref, content))
+        rank = _rank(context_ref, contexts, period_end, filing_date)
+        candidates.setdefault(section, []).append((rank, alias_idx, local, context_ref, content))
 
     result: dict[str, ExtractedNarrative] = {}
     for section, facts in candidates.items():
-        facts.sort(key=lambda f: f[0])
-        _, local, context_ref, content = facts[0]
-        text = html_to_text(content)
-        if not text:
-            continue
-        if len(text) > _MAX_SECTION_CHARS:
-            logger.warning("Narrative section %s truncated from %d chars", section, len(text))
-            text = text[:_MAX_SECTION_CHARS]
-        ctx = contexts.get(context_ref)
-        result[section] = ExtractedNarrative(
-            section=section,
-            element=local,
-            text=text,
-            context_ref=context_ref,
-            period_start=ctx.start if ctx else None,
-            period_end=ctx.end if ctx else None,
-        )
+        # Best context rank first, then documented alias priority
+        facts.sort(key=lambda f: (f[0], f[1]))
+        for _, _, local, context_ref, content in facts:
+            text = html_to_text(content)
+            if not text:
+                continue  # fall back to the next-ranked candidate
+            source_truncated = len(text) > _MAX_SECTION_CHARS
+            if source_truncated:
+                logger.warning("Narrative section %s truncated from %d chars", section, len(text))
+                text = text[:_MAX_SECTION_CHARS]
+            ctx = contexts.get(context_ref)
+            result[section] = ExtractedNarrative(
+                section=section,
+                element=local,
+                text=text,
+                context_ref=context_ref,
+                period_start=ctx.start if ctx else None,
+                period_end=ctx.end if ctx else None,
+                source_truncated=source_truncated,
+            )
+            break
     return result

@@ -665,3 +665,38 @@ class TestGetNarrative:
         """_resolve_filing is the shared filing-resolution path."""
         client = EdinetClient(api_key="test")
         assert hasattr(client, "_resolve_filing")
+
+    async def test_narrative_cached_across_calls(self, tmp_path, sample_filing) -> None:
+        from tests.conftest import make_narrative_zip
+
+        client = self._client_with_zip(make_narrative_zip(tmp_path), sample_filing)
+        first = await client.get_narrative("E02144", "business_risks")
+        second = await client.get_narrative("E02144", "business_risks")
+        assert first == second
+        assert client.download_document.call_count == 1
+
+    async def test_invalid_first_instance_skipped(self, tmp_path, sample_filing) -> None:
+        import zipfile
+
+        from tests.conftest import _JPCRP_NS_2023, NARRATIVE_XBRL_BODY
+
+        instance = f"""<?xml version="1.0" encoding="UTF-8"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+            xmlns:jpcrp_cor="{_JPCRP_NS_2023}">
+  <xbrli:context id="FilingDateInstant">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E00001-000</xbrli:identifier>
+    </xbrli:entity>
+    <xbrli:period><xbrli:instant>2025-06-20</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  {NARRATIVE_XBRL_BODY}
+</xbrli:xbrl>
+"""
+        zip_path = tmp_path / "narrative.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("XBRL/PublicDoc/aaa_broken.xbrl", "not xml <<<")
+            zf.writestr("XBRL/PublicDoc/bbb_valid.xbrl", instance)
+        client = self._client_with_zip(zip_path, sample_filing)
+        nar = await client.get_narrative("E02144", "business_risks")
+        assert nar is not None
+        assert "為替変動リスク" in nar.text

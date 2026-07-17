@@ -28,6 +28,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `EdinetClient._resolve_filing()` — filing resolution shared by statements
   and narratives instead of duplicated logic.
 
+### Fixed (post-review hardening, gpt-5.3-codex code review of b35975b)
+- Instance files are size-checked (50 MB, same as the parser) before DOM
+  parsing instead of relying only on the post-conversion character cap.
+- Context ranking now puts period semantics before dimensions and only
+  treats `instant == filing_date` as the filing-date context, so a
+  prior-year instant or a dimensionless prior-year duration can no longer
+  outrank the current period. Empty-normalizing candidates fall back to the
+  next-ranked one, and alias order in `NARRATIVE_SECTIONS` is honored.
+- Table cells containing block elements (`<td><p>A</p></td>`) are buffered
+  per cell and tab-joined instead of splitting into separate lines.
+- Extracted narratives are cached per `(doc_id, section)` (bounded, 64
+  entries) so MCP paging does not re-download/re-parse per page; an invalid
+  XBRL instance no longer masks a valid sibling instance.
+- The 1M-character defensive cap is reported as `source_truncated` on
+  `NarrativeSection` and in the MCP response instead of silently lying in
+  `total_chars`.
+
 ## [0.7.0] - 2026-07-17
 
 ### Added

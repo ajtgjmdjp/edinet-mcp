@@ -37,8 +37,8 @@ def validate_financial_statement(stmt: FinancialStatement) -> None:
 def _check_balance_sheet_equation(stmt: FinancialStatement) -> None:
     """Check if Assets = Liabilities + Equity (within tolerance).
 
-    Tolerates rounding differences up to 1 million yen (千円単位で1000)
-    since EDINET reports in thousands of yen.
+    Tolerates rounding differences up to 1 million yen. Values from the
+    XBRL parse path are raw JPY (not thousands).
     """
     bs = stmt.balance_sheet
 
@@ -57,15 +57,14 @@ def _check_balance_sheet_equation(stmt: FinancialStatement) -> None:
             break
 
     if total_assets is not None and liab_equity is not None:
-        # Both values are in thousands of yen
         diff = abs(total_assets - liab_equity)
-        # Tolerance: 1 million yen = 1000 (in thousands)
-        if diff > 1000:
+        # Tolerance: 1 million yen (values are raw JPY)
+        if diff > 1_000_000:
             warnings.warn(
                 f"Balance sheet imbalance detected: "
-                f"Total Assets = {total_assets:,} thousand yen, "
-                f"Liabilities + Equity = {liab_equity:,} thousand yen, "
-                f"Difference = {diff:,} thousand yen",
+                f"Total Assets = {total_assets:,} yen, "
+                f"Liabilities + Equity = {liab_equity:,} yen, "
+                f"Difference = {diff:,} yen",
                 FinancialDataWarning,
                 stacklevel=3,
             )
@@ -105,7 +104,7 @@ def _check_income_statement_consistency(stmt: FinancialStatement) -> None:
                 f"Income statement inconsistency: "
                 f"Gross Profit = {gross_profit:,}, "
                 f"Revenue - COGS = {expected_gross:,}, "
-                f"Difference = {diff:,} thousand yen",
+                f"Difference = {diff:,} yen",
                 FinancialDataWarning,
                 stacklevel=3,
             )
@@ -125,7 +124,7 @@ def _check_abnormal_values(stmt: FinancialStatement) -> None:
             value = bs[label].get("当期")
             if value is not None and value < 0:
                 warnings.warn(
-                    f"Negative total assets detected: {value:,} thousand yen. "
+                    f"Negative total assets detected: {value:,} yen. "
                     "This may indicate a data error.",
                     FinancialDataWarning,
                     stacklevel=3,
@@ -137,7 +136,7 @@ def _check_abnormal_values(stmt: FinancialStatement) -> None:
             value = bs[label].get("当期")
             if value is not None and value < 0:
                 warnings.warn(
-                    f"Negative equity detected: {value:,} thousand yen. "
+                    f"Negative equity detected: {value:,} yen. "
                     "Company may be in financial distress or this is a data error.",
                     FinancialDataWarning,
                     stacklevel=3,

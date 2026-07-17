@@ -88,4 +88,4 @@ __all__ = [
     "validate_financial_statement",
 ]
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"

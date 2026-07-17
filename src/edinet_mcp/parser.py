@@ -3,21 +3,15 @@
 Handles the extraction and structuring of financial data from EDINET's
 XBRL/TSV/CSV files into :class:`FinancialStatement` objects.
 
-The EDINET API returns a ZIP file containing:
-- XBRL instance files (XML)
-- TSV summary files (for quick access to key financial items)
-- PDF renditions
-- manifest.xml
-
 This parser supports two extraction paths:
-1. **TSV-based** (fast, structured): Parse the TSV files that EDINET provides
-   alongside the XBRL. These are pre-extracted tabular data.
-2. **XBRL-based** (comprehensive): Parse the raw XBRL instance documents
-   for full coverage.
+1. **TSV-based**: for directories that contain pre-extracted TSV tables
+   (e.g. manually prepared data). Production ``format="xbrl"`` ZIPs from
+   the EDINET API do NOT contain TSVs, so this path rarely fires there.
+2. **XBRL-based** (the production path): parse the raw XBRL instance
+   documents under ``XBRL/PublicDoc`` and route facts to statements by
+   taxonomy membership.
 
-The TSV path is used by default as it's faster and covers the most common
-use cases (BS, PL, CF, summary). The XBRL path is available for deeper
-extraction needs.
+Values are raw JPY as reported in the instance document.
 """
 
 from __future__ import annotations
@@ -31,6 +25,8 @@ from typing import TYPE_CHECKING, Any
 
 import defusedxml.ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
+
+from edinet_mcp._normalize import _strip_edinet_suffixes, get_element_statement_map
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -89,7 +85,7 @@ class XBRLParser:
             logger.debug(f"Parsed {tsv_found} statement(s) from TSV files")
 
         # Try XBRL path for any missing data
-        if not stmt.balance_sheet or not stmt.income_statement:
+        if not stmt.balance_sheet or not stmt.income_statement or not stmt.cash_flow_statement:
             xbrl_found = self._parse_xbrl_files(directory, stmt)
             if xbrl_found:
                 logger.debug(f"Parsed {xbrl_found} additional item(s) from XBRL")
@@ -156,17 +152,19 @@ class XBRLParser:
             and "schema" not in f.name.lower()
         ]
 
-        found = 0
+        # Pool facts from ALL instance files before categorizing: with
+        # per-file categorization the first discovered file would win and
+        # facts for a statement split across files would be lost.
+        all_facts: list[dict[str, Any]] = []
         for xbrl_file in xbrl_files:
             try:
-                facts = self._extract_xbrl_facts(xbrl_file)
-                if facts:
-                    found += len(facts)
-                    self._categorize_facts(facts, stmt)
+                all_facts.extend(self._extract_xbrl_facts(xbrl_file))
             except (ET.ParseError, DefusedXmlException) as e:
                 logger.warning(f"Failed to parse {xbrl_file.name} ({type(e).__name__}): {e}")
 
-        return found
+        if all_facts:
+            self._categorize_facts(all_facts, stmt)
+        return len(all_facts)
 
     # Maximum XBRL file size to parse (50 MB).  Protects against
     # decompression bombs and billion-laughs-style entity expansion.
@@ -246,12 +244,28 @@ class XBRLParser:
 
     @staticmethod
     def _categorize_facts(facts: list[dict[str, Any]], stmt: FinancialStatement) -> None:
-        """Route parsed XBRL facts into the appropriate statement."""
-        bs_items = []
-        pl_items = []
-        cf_items = []
+        """Route parsed XBRL facts into the appropriate statement.
+
+        Taxonomy membership decides the bucket (e.g. CashAndDeposits is a
+        balance-sheet item even though it contains "cash"); the keyword
+        heuristic only handles extension elements the taxonomy doesn't know.
+        """
+        element_map = get_element_statement_map()
+        buckets: dict[str, list[dict[str, Any]]] = {
+            "balance_sheet": [],
+            "income_statement": [],
+            "cash_flow": [],
+        }
+        bs_items = buckets["balance_sheet"]
+        pl_items = buckets["income_statement"]
+        cf_items = buckets["cash_flow"]
 
         for fact in facts:
+            statement_key = element_map.get(_strip_edinet_suffixes(fact["element"]))
+            if statement_key is not None:
+                buckets[statement_key].append(fact)
+                continue
+            # Extension elements: fall back to name keywords rather than drop
             elem = fact["element"].lower()
             if any(k in elem for k in ("asset", "liabilit", "equity", "netasset")):
                 bs_items.append(fact)

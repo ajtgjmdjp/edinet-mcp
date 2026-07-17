@@ -319,6 +319,29 @@ def get_label_aliases(
     return _alias_cache[statement_key]
 
 
+_element_statement_cache: Mapping[str, str] | None = None
+
+
+def get_element_statement_map() -> Mapping[str, str]:
+    """Return a map of taxonomy element local names -> statement key.
+
+    Keys are element names as they appear in taxonomy.yaml (already
+    suffix-free); callers should apply :func:`_strip_edinet_suffixes`
+    to raw instance element names before lookup. Elements listed under
+    several statements keep the first occurrence in taxonomy order.
+    Cached after first call; the returned mapping is read-only.
+    """
+    global _element_statement_cache
+    if _element_statement_cache is None:
+        mapping: dict[str, str] = {}
+        for statement_key, items in _load_taxonomy().items():
+            for item in items:
+                for elem in item["elements"]:
+                    mapping.setdefault(elem, statement_key)
+        _element_statement_cache = MappingProxyType(mapping)
+    return _element_statement_cache
+
+
 def normalize_statement(stmt: FinancialStatement) -> FinancialStatement:
     """Normalize all statements in a FinancialStatement.
 

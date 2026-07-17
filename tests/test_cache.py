@@ -112,3 +112,32 @@ class TestCorruptCache:
         cache = DiskCache(tmp_path)
         cache.put_json("filings", {"date": "2026-07-17"}, {"ok": True})
         assert cache.get_json("filings", {"date": "2026-07-17"}) == {"ok": True}
+
+
+class TestAtomicWrites:
+    def test_no_partial_file_visible_at_final_path(self, tmp_path: Path) -> None:
+        """put_json must write via a temp file + atomic replace, so the
+        final path never holds partial data (no .tmp residue either)."""
+        cache = DiskCache(tmp_path)
+        path = cache.put_json("ns", {"k": 1}, {"a": 1})
+        assert path.exists()
+        leftovers = [p for p in path.parent.iterdir() if p.name != path.name]
+        assert leftovers == []
+
+    def test_file_permissions_restricted(self, tmp_path: Path) -> None:
+        cache = DiskCache(tmp_path)
+        path = cache.put_file("docs", {"k": 1}, b"data", suffix=".zip")
+        assert (path.stat().st_mode & 0o777) == 0o600
+
+    def test_symlink_target_not_followed(self, tmp_path: Path) -> None:
+        """A pre-planted symlink at the cache path must not cause writes
+        through to the symlink target."""
+        cache = DiskCache(tmp_path)
+        victim = tmp_path / "victim.txt"
+        victim.write_text("original")
+        # Plant a symlink where the cache entry would go
+        expected = cache.put_file("docs", {"k": 2}, b"probe", suffix=".zip")
+        expected.unlink()
+        expected.symlink_to(victim)
+        cache.put_file("docs", {"k": 2}, b"overwritten", suffix=".zip")
+        assert victim.read_text() == "original"

@@ -164,10 +164,12 @@ def _compare_statement(
     """Compare two statements and return diffs for each line item."""
     diffs: list[LineItemDiff] = []
 
-    # Get all unique labels from both statements
-    labels1 = set(stmt1.labels)
-    labels2 = set(stmt2.labels)
-    all_labels = labels1 | labels2
+    # Deterministic order: newer period's display order first, then labels
+    # only present in the older period. A set union would randomize row
+    # order — and the MCP tool truncates to 50 rows, so order matters.
+    labels2 = list(dict.fromkeys(stmt2.labels))
+    seen = set(labels2)
+    all_labels = labels2 + [lb for lb in stmt1.labels if lb not in seen]
 
     for label in all_labels:
         val1 = _extract_current_value(stmt1, label)
@@ -224,11 +226,19 @@ def _calculate_change_rate(val1: float | None, val2: float | None) -> str | None
 
 
 def _calculate_summary(diffs: list[LineItemDiff]) -> dict[str, Any]:
-    """Calculate summary statistics from diffs."""
+    """Calculate summary statistics from diffs.
+
+    Rows missing a value on one side are classified as ``added`` /
+    ``removed`` rather than silently counted as unchanged.
+    """
     total_items = len(diffs)
     increased = sum(1 for d in diffs if (d.get("増減額") or 0) > 0)
     decreased = sum(1 for d in diffs if (d.get("増減額") or 0) < 0)
-    unchanged = total_items - increased - decreased
+    added = sum(1 for d in diffs if d["period1_value"] is None and d["period2_value"] is not None)
+    removed = sum(
+        1 for d in diffs if d["period1_value"] is not None and d["period2_value"] is None
+    )
+    unchanged = total_items - increased - decreased - added - removed
 
     # Top 5 increases and decreases
     valid_diffs = [d for d in diffs if d.get("増減額") is not None]
@@ -240,6 +250,8 @@ def _calculate_summary(diffs: list[LineItemDiff]) -> dict[str, Any]:
         "increased": increased,
         "decreased": decreased,
         "unchanged": unchanged,
+        "added": added,
+        "removed": removed,
         "top_increases": [
             {"科目": d["科目"], "増減額": d["増減額"], "増減率": d["増減率"]}
             for d in top_increases

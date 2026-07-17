@@ -155,9 +155,9 @@ class Filing(BaseModel):
             filing_date=_parse_date(row.get("submitDateTime") or ""),
             period_start=_parse_date_or_none(row.get("periodStart")),
             period_end=_parse_date_or_none(row.get("periodEnd")),
-            has_xbrl=bool(row.get("xbrlFlag")),
-            has_pdf=bool(row.get("pdfFlag")),
-            has_csv=bool(row.get("csvFlag")),
+            has_xbrl=_parse_flag(row.get("xbrlFlag")),
+            has_pdf=_parse_flag(row.get("pdfFlag")),
+            has_csv=_parse_flag(row.get("csvFlag")),
             description=row.get("docDescription") or "",
         )
 
@@ -360,6 +360,17 @@ class NarrativeSection(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _parse_flag(value: Any) -> bool:
+    """Parse an EDINET availability flag.
+
+    The API sends flags as ``"0"`` / ``"1"`` strings — ``bool("0")``
+    would be ``True``, so string values must be compared explicitly.
+    """
+    if isinstance(value, str):
+        return value.strip() == "1"
+    return bool(value)
 
 
 def _parse_date(value: str) -> datetime.date:

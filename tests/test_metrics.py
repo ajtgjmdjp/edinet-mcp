@@ -238,3 +238,21 @@ class TestComparePeriods:
         changes = compare_periods(stmt)
         assert len(changes) == 1
         assert "増減率" not in changes[0]
+
+
+class TestGrowthRateLossYears:
+    """Growth denominators must use abs(prior) like _diff/compare_periods."""
+
+    def test_operating_income_loss_improvement_is_positive(self) -> None:
+        from edinet_mcp._metrics import _calc_growth, _StatementValues
+
+        v = _StatementValues(operating_income=-50.0, operating_income_prev=-100.0)
+        growth = _calc_growth(v)
+        # Loss shrank from -100 to -50: +50%, not -50%
+        assert growth["営業利益成長率"] == "50.00%"
+
+    def test_positive_growth_unchanged(self) -> None:
+        from edinet_mcp._metrics import _calc_growth, _StatementValues
+
+        v = _StatementValues(revenue=120.0, revenue_prev=100.0)
+        assert _calc_growth(v)["売上高成長率"] == "20.00%"

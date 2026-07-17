@@ -2,6 +2,12 @@
 
 Computes key financial ratios (ROE, ROA, margins, etc.) and
 year-over-year comparisons from normalized :class:`FinancialStatement` data.
+
+Note on ratio bases: ROE / ROA / turnover ratios use ENDING balances
+(当期末残高), not beginning/ending averages. This is a deliberate,
+documented approximation; textbook average-balance variants may differ.
+Growth-rate denominators use ``abs(prior)`` so loss-year improvements
+read as positive growth.
 """
 
 from __future__ import annotations
@@ -60,7 +66,7 @@ class GrowthMetrics(TypedDict, total=False):
 class CashFlowMetrics(TypedDict, total=False):
     """Cash flow values and margins."""
 
-    営業CF: float  # thousands of yen
+    営業CF: float  # yen (as reported)
     投資CF: float
     財務CF: float
     フリーCF: float
@@ -69,7 +75,7 @@ class CashFlowMetrics(TypedDict, total=False):
 
 
 class RawValues(TypedDict, total=False):
-    """Raw financial values (in thousands of yen)."""
+    """Raw financial values in yen (as reported in the filing)."""
 
     売上高: float
     営業利益: float
@@ -277,19 +283,21 @@ def _calc_efficiency(v: _StatementValues) -> dict[str, float]:
 
 def _calc_growth(v: _StatementValues) -> dict[str, str]:
     """Calculate YoY growth rates and return as a dict of pct strings."""
+    # Denominators use abs(prior) so loss-year improvements read as
+    # positive growth — consistent with _diff and compare_periods.
     growth: dict[str, str] = {}
     if v.revenue is not None and v.revenue_prev is not None and v.revenue_prev != 0:
-        rate = (v.revenue - v.revenue_prev) / v.revenue_prev
+        rate = (v.revenue - v.revenue_prev) / abs(v.revenue_prev)
         growth["売上高成長率"] = _pct(rate) or ""
     if (
         v.operating_income is not None
         and v.operating_income_prev is not None
         and v.operating_income_prev != 0
     ):
-        rate = (v.operating_income - v.operating_income_prev) / v.operating_income_prev
+        rate = (v.operating_income - v.operating_income_prev) / abs(v.operating_income_prev)
         growth["営業利益成長率"] = _pct(rate) or ""
     if v.total_assets is not None and v.total_assets_prev is not None and v.total_assets_prev != 0:
-        rate = (v.total_assets - v.total_assets_prev) / v.total_assets_prev
+        rate = (v.total_assets - v.total_assets_prev) / abs(v.total_assets_prev)
         growth["総資産成長率"] = _pct(rate) or ""
     return growth
 

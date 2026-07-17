@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 import io
 import zipfile
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -416,10 +416,14 @@ class TestFetchFilingsCache:
     """Tests for _fetch_filings_for_date cache consistency (docID filtering)."""
 
     _DATE = datetime.date(2025, 6, 20)
-    _CACHE_PARAMS: ClassVar[dict[str, Any]] = {
-        "date": "2025-06-20",
-        "type": _DOC_LIST_WITH_RESULTS,
-    }
+
+    @staticmethod
+    def _cache_params(client: EdinetClient) -> dict[str, Any]:
+        return {
+            "date": "2025-06-20",
+            "type": _DOC_LIST_WITH_RESULTS,
+            "base_url": client._base_url,
+        }
 
     @staticmethod
     def _client(tmp_path: Path) -> EdinetClient:
@@ -439,7 +443,7 @@ class TestFetchFilingsCache:
         assert len(filings) == 1
         assert filings[0].doc_id == "S100VVC2"
 
-        cached = client._cache.get_json("filings", self._CACHE_PARAMS)
+        cached = client._cache.get_json("filings", self._cache_params(client))
         assert cached is not None
         assert all(row.get("docID") for row in cached), "cache must not contain rows without docID"
 
@@ -450,7 +454,9 @@ class TestFetchFilingsCache:
         client = self._client(tmp_path)
         docid_less_row = dict(sample_api_row, docID=None)
         # Simulate a cache poisoned by a previous buggy version
-        client._cache.put_json("filings", self._CACHE_PARAMS, [sample_api_row, docid_less_row])
+        client._cache.put_json(
+            "filings", self._cache_params(client), [sample_api_row, docid_less_row]
+        )
 
         filings = await client._fetch_filings_for_date(self._DATE)
         assert len(filings) == 1
@@ -700,3 +706,62 @@ class TestGetNarrative:
         nar = await client.get_narrative("E02144", "business_risks")
         assert nar is not None
         assert "為替変動リスク" in nar.text
+
+
+class TestResolveFilingLatest:
+    """period=None must not exceed the 366-day range limit (P0 regression).
+
+    The old implementation requested a single 730-day range, which
+    get_filings itself rejects — so every documented period-omitted call
+    (get_financial_statements, get_narrative, screening) failed instantly.
+    """
+
+    async def test_latest_search_does_not_raise_range_error(self, sample_filing) -> None:
+        client = EdinetClient(api_key="test")
+        calls: list[int] = []
+        real_get_filings = client.get_filings
+
+        async def fake_get_filings(*, start_date, end_date, edinet_code, doc_type):
+            span = (end_date - start_date).days
+            calls.append(span)
+            assert span <= 366, f"window of {span} days would be rejected"
+            return [sample_filing] if len(calls) >= 2 else []
+
+        client.get_filings = fake_get_filings  # type: ignore[method-assign]
+        filing = await client._resolve_filing("E02144", "annual_report", None)
+        assert filing == sample_filing
+        assert len(calls) == 2  # stopped as soon as a window matched
+        del real_get_filings
+
+    async def test_latest_search_stops_on_first_window_hit(self, sample_filing) -> None:
+        client = EdinetClient(api_key="test")
+        client.get_filings = AsyncMock(return_value=[sample_filing])  # type: ignore[method-assign]
+        filing = await client._resolve_filing("E02144", "annual_report", None)
+        assert filing == sample_filing
+        assert client.get_filings.call_count == 1
+
+    async def test_latest_search_exhausted_raises(self) -> None:
+        client = EdinetClient(api_key="test")
+        client.get_filings = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with pytest.raises(ValueError, match="No annual_report filing found"):
+            await client._resolve_filing("E02144", "annual_report", None)
+        # Coverage must span roughly two years of history
+        assert client.get_filings.call_count >= 20
+
+
+class TestCacheKeySourceScoping:
+    """Cache entries must be scoped to the API base_url (no cross-source poisoning)."""
+
+    async def test_filings_cache_key_includes_base_url(self, tmp_path, sample_api_row) -> None:
+        client = EdinetClient(api_key="test", cache_dir=tmp_path)
+        client._get_json = AsyncMock(return_value={"results": [sample_api_row]})  # type: ignore[method-assign]
+        date = datetime.date(2025, 6, 20)
+        await client._fetch_filings_for_date(date)
+
+        # Same date but a different endpoint must MISS the cache
+        client2 = EdinetClient(api_key="test", cache_dir=tmp_path)
+        client2._base_url = "https://staging.example.com/api"
+        client2._get_json = AsyncMock(return_value={"results": []})  # type: ignore[method-assign]
+        result = await client2._fetch_filings_for_date(date)
+        assert client2._get_json.call_count == 1
+        assert result == []

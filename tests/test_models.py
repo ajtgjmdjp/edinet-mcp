@@ -221,3 +221,33 @@ class TestEnglishLabelAccess:
             en_to_ja["x"] = "y"  # type: ignore[index]
         with pytest.raises(AttributeError):
             ja_to_en.clear()  # type: ignore[attr-defined]
+
+
+class TestApiFlagParsing:
+    """EDINET sends flags as "0"/"1" strings — "0" must mean False."""
+
+    def _row(self, **flags: object) -> dict[str, object]:
+        return {
+            "docID": "S100TEST",
+            "edinetCode": "E02144",
+            "filerName": "Test",
+            "docTypeCode": "120",
+            "submitDateTime": "2025-06-20",
+            **flags,
+        }
+
+    def test_string_zero_is_false(self) -> None:
+        f = Filing.from_api_row(self._row(xbrlFlag="0", pdfFlag="0", csvFlag="0"))
+        assert f.has_xbrl is False
+        assert f.has_pdf is False
+        assert f.has_csv is False
+
+    def test_string_one_is_true(self) -> None:
+        f = Filing.from_api_row(self._row(xbrlFlag="1", pdfFlag="1", csvFlag="1"))
+        assert f.has_xbrl is True
+        assert f.has_pdf is True
+        assert f.has_csv is True
+
+    def test_missing_flag_is_false(self) -> None:
+        f = Filing.from_api_row(self._row())
+        assert f.has_xbrl is False

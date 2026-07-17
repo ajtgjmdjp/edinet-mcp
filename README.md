@@ -273,7 +273,6 @@ async def main():
         api_key="...",        # or EDINET_API_KEY env var
         cache_dir="~/.cache/edinet-mcp",
         rate_limit=0.5,       # requests per second
-        max_retries=3,        # retry on 429/5xx with exponential backoff
     ) as client:
         # Search
         companies: list[Company] = await client.search_companies("query")
@@ -375,7 +374,7 @@ EDINET API → Parser (XBRL/TSV) → Normalizer (taxonomy.yaml) → MCP Server
 git clone https://github.com/ajtgjmdjp/edinet-mcp
 cd edinet-mcp
 uv sync --extra dev
-uv run pytest -v           # 213 tests
+uv run pytest -v           # 335 tests
 uv run ruff check src/
 ```
 

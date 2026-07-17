@@ -107,9 +107,28 @@ class DiskCache:
 
 
 def _write_restricted(path: Path, data: bytes) -> None:
-    """Write data to a file with owner-only permissions (0o600)."""
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, stat.S_IRUSR | stat.S_IWUSR)
+    """Write data atomically with owner-only permissions (0o600).
+
+    Writes to a same-directory temporary file (O_EXCL, so a planted
+    symlink is never followed), fsyncs, then atomically replaces the
+    destination. Concurrent readers therefore never observe partial
+    JSON/ZIP data, and a crashed writer leaves the old entry intact.
+    """
+    tmp_path = path.parent / f".{path.name}.tmp-{os.getpid()}"
+    fd = os.open(
+        str(tmp_path),
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        stat.S_IRUSR | stat.S_IWUSR,
+    )
     try:
-        os.write(fd, data)
-    finally:
+        view = memoryview(data)
+        while view:
+            written = os.write(fd, view)
+            view = view[written:]
+        os.fsync(fd)
+    except BaseException:
         os.close(fd)
+        tmp_path.unlink(missing_ok=True)
+        raise
+    os.close(fd)
+    os.replace(tmp_path, path)

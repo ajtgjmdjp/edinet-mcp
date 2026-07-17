@@ -93,7 +93,12 @@ def search(query: str, limit: int, as_json: bool) -> None:
 
 @cli.command()
 @click.option("--edinet-code", "-c", required=True, help="EDINET code (e.g. E02144).")
-@click.option("--period", "-p", default=None, help="Fiscal year (e.g. 2024).")
+@click.option(
+    "--period",
+    "-p",
+    default=None,
+    help="Filing year / 提出年 (e.g. 2025 for FY2024 of March-closing companies).",
+)
 @click.option("--doc-type", "-t", default="annual_report", help="Document type.")
 @click.option(
     "--format",
@@ -175,7 +180,12 @@ def statements(
 @click.argument("edinet_codes", nargs=-1, required=True)
 @click.option("--sort-by", default=None, help="Metric to sort by (e.g. ROE, 営業利益率).")
 @click.option("--sort-desc/--sort-asc", default=True, help="Sort direction (default: descending).")
-@click.option("--period", "-p", default=None, help="Fiscal year (e.g. 2024).")
+@click.option(
+    "--period",
+    "-p",
+    default=None,
+    help="Filing year / 提出年 (e.g. 2025 for FY2024 of March-closing companies).",
+)
 @click.option("--doc-type", "-t", default="annual_report", help="Document type.")
 @click.option(
     "--format",

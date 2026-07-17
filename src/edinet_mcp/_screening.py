@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from edinet_mcp._metrics import calculate_metrics
+from edinet_mcp.client import EdinetAPIError
 
 if TYPE_CHECKING:
     from edinet_mcp.client import EdinetClient
@@ -65,7 +66,7 @@ async def screen_companies(
         try:
             row = await _fetch_company_metrics(client, code, doc_type, period)
             results.append(row)
-        except (httpx.HTTPError, ValueError, KeyError) as e:
+        except (httpx.HTTPError, EdinetAPIError, ValueError, KeyError) as e:
             logger.warning(f"Screening failed for {code}: {e}")
             errors.append({"edinet_code": code, "error": str(e)})
 

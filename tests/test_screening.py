@@ -196,3 +196,17 @@ class TestSortMissingMetrics:
 
         out = _sort_by_metric(self._rows(), "ROE", False)
         assert [r["edinet_code"] for r in out] == ["B_LOW", "C_HIGH", "A_MISSING"]
+
+
+class TestScreeningErrorContract:
+    async def test_edinet_api_error_goes_to_errors_not_raise(self) -> None:
+        from edinet_mcp.client import EdinetAPIError
+
+        client = MagicMock()
+        client.get_financial_statements = AsyncMock(
+            side_effect=EdinetAPIError("EDINET returned non-ZIP response")
+        )
+        result = await screen_companies(client, ["E02144"])
+        assert result["results"] == []
+        assert result["count"] == 0
+        assert result["errors"][0]["edinet_code"] == "E02144"

@@ -79,6 +79,12 @@ _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 # Maximum entries in the per-client narrative cache
 _NARRATIVE_CACHE_MAX = 64
 
+# Latest-filing search: backwards scan window size and count (~2 years).
+# Windows stay well under the get_filings 366-day range limit, and the
+# common case (annual report within the last year) stops after a few.
+_LATEST_SEARCH_WINDOW_DAYS = 30
+_LATEST_SEARCH_WINDOWS = 24
+
 # ZIP magic bytes
 _ZIP_MAGIC = b"PK"
 
@@ -334,7 +340,13 @@ class EdinetClient:
     async def _fetch_filings_for_date(self, date: datetime.date) -> list[Filing]:
         """Fetch document list for a single date, with caching."""
         date_str = date.isoformat()
-        cache_params = {"date": date_str, "type": _DOC_LIST_WITH_RESULTS}
+        # base_url is part of the key: entries fetched from a test or
+        # staging endpoint must never be served against production.
+        cache_params = {
+            "date": date_str,
+            "type": _DOC_LIST_WITH_RESULTS,
+            "base_url": self._base_url,
+        }
 
         cached = self._cache.get_json("filings", cache_params, max_age=_CACHE_TTL_FILINGS)
         if cached is not None:
@@ -385,7 +397,7 @@ class EdinetClient:
         }
         retrieve_type = type_map.get(format, _DOC_RETRIEVE_XBRL)
 
-        cache_params = {"doc_id": doc_id, "type": retrieve_type}
+        cache_params = {"doc_id": doc_id, "type": retrieve_type, "base_url": self._base_url}
         cached_path = self._cache.get_file("documents", cache_params, suffix=".zip")
         if cached_path is not None:
             if _is_valid_zip(cached_path):
@@ -475,25 +487,34 @@ class EdinetClient:
     ) -> Filing:
         """Find the most recent matching filing for a company.
 
-        Uses month-priority search when *period* is given, otherwise
-        scans the trailing two years. Shared by statement and narrative
+        Uses month-priority search when *period* is given. Otherwise
+        scans backwards month-by-month over the trailing two years,
+        stopping at the first window with a match — a single 730-day
+        range would both exceed the get_filings range limit and fetch
+        every day even after a hit. Shared by statement and narrative
         retrieval.
         """
         if period:
             filing = await self._find_filing_for_period(edinet_code, int(period), doc_type)
         else:
-            end = datetime.date.today()
-            start = end - datetime.timedelta(days=730)
-            filings = await self.get_filings(
-                start_date=start,
-                end_date=end,
-                edinet_code=edinet_code,
-                doc_type=doc_type,
-            )
-            if not filings:
-                msg = f"No {doc_type} filing found for {edinet_code}"
+            filing_or_none: Filing | None = None
+            window_end = datetime.date.today()
+            for _ in range(_LATEST_SEARCH_WINDOWS):
+                window_start = window_end - datetime.timedelta(days=_LATEST_SEARCH_WINDOW_DAYS)
+                filings = await self.get_filings(
+                    start_date=window_start,
+                    end_date=window_end,
+                    edinet_code=edinet_code,
+                    doc_type=doc_type,
+                )
+                if filings:
+                    filing_or_none = sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
+                    break
+                window_end = window_start - datetime.timedelta(days=1)
+            if filing_or_none is None:
+                msg = f"No {doc_type} filing found for {edinet_code} in the last 2 years"
                 raise ValueError(msg)
-            filing = sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
+            filing = filing_or_none
         logger.info(f"Using filing {filing.doc_id} ({filing.description})")
         return filing
 

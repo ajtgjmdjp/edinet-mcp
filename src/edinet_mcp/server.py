@@ -184,7 +184,8 @@ async def get_filings(
     """List financial filings for a company within a date range.
 
     Returns filing metadata including doc_id, filing date, and document type.
-    Use the doc_id with get_financial_statements to retrieve actual data.
+    To retrieve the actual data, call get_financial_statements with the
+    edinet_code and the filing year as period (doc_id is informational).
     """
     client = await _get_client()
     filings = await client.get_filings(

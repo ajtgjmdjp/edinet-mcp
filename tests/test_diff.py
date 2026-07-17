@@ -233,3 +233,49 @@ class TestLineItemDiff:
         assert diff["科目"] == "売上高"
         assert diff["増減額"] == 50
         assert diff["増減率"] == "+50.00%"
+
+
+class TestDiffDeterminismAndSummary:
+    """Codex P2: deterministic ordering + honest summary classification."""
+
+    @staticmethod
+    def _stmts() -> tuple[StatementData, StatementData]:
+        stmt1 = StatementData(
+            items=[
+                {"科目": "売上高", "当期": 100},
+                {"科目": "売上原価", "当期": 60},  # removed in period 2
+            ],
+            label="IncomeStatement",
+        )
+        stmt2 = StatementData(
+            items=[
+                {"科目": "売上高", "当期": 100},  # unchanged
+                {"科目": "営業利益", "当期": 50},  # added in period 2
+            ],
+            label="IncomeStatement",
+        )
+        return stmt1, stmt2
+
+    def test_compare_statement_order_is_deterministic(self) -> None:
+        from edinet_mcp._diff import _compare_statement
+
+        stmt1, stmt2 = self._stmts()
+        labels_runs = [
+            [d["科目"] for d in _compare_statement(stmt1, stmt2, "income_statement")]
+            for _ in range(5)
+        ]
+        assert all(run == labels_runs[0] for run in labels_runs)
+        # stmt2 (newer period) order first, then stmt1-only labels
+        assert labels_runs[0] == ["売上高", "営業利益", "売上原価"]
+
+    def test_summary_classifies_added_and_removed(self) -> None:
+        from edinet_mcp._diff import _calculate_summary, _compare_statement
+
+        stmt1, stmt2 = self._stmts()
+        diffs = _compare_statement(stmt1, stmt2, "income_statement")
+        summary = _calculate_summary(diffs)
+        assert summary["unchanged"] == 1  # 売上高 only (present in both, delta 0)
+        assert summary["added"] == 1  # 営業利益
+        assert summary["removed"] == 1  # 売上原価
+        assert summary["increased"] == 0
+        assert summary["decreased"] == 0

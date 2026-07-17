@@ -91,15 +91,29 @@ class TestBalanceSheetEquation:
             _check_balance_sheet_equation(stmt)  # Should not raise
 
     def test_large_diff_warns(self) -> None:
-        """Large differences (> 1 million yen) should warn."""
+        """Differences over 1 million yen (values are raw JPY) should warn."""
         stmt = _make_statement(
             bs_data={
-                "総資産": {"当期": 1000000},
-                "負債純資産合計": {"当期": 1002000},  # 2M diff
+                "総資産": {"当期": 1_000_000_000},
+                "負債純資産合計": {"当期": 1_002_000_000},  # ¥2M diff
             }
         )
 
         with pytest.warns(FinancialDataWarning, match="Balance sheet imbalance"):
+            _check_balance_sheet_equation(stmt)
+
+    def test_small_diff_within_tolerance(self) -> None:
+        """Sub-million-yen rounding differences must not warn."""
+        stmt = _make_statement(
+            bs_data={
+                "総資産": {"当期": 1_000_000_000},
+                "負債純資産合計": {"当期": 1_000_500_000},  # ¥0.5M diff
+            }
+        )
+        import warnings as _warnings
+
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error", FinancialDataWarning)
             _check_balance_sheet_equation(stmt)
 
     def test_missing_fields_no_warning(self) -> None:

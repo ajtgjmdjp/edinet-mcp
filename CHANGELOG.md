@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-07-17
+
+Correctness release from a whole-codebase review (self-review + gpt-5.3-codex,
+thread 019f700e-3f16-7c33-8440-b8f3b13b05a4). No new features.
+
+### Fixed
+- **P0 — period-omitted retrieval always failed**: `get_financial_statements`
+  / `get_narrative` / screening with `period=None` built a 730-day search
+  range that `get_filings` itself rejects (366-day limit), so every
+  documented "latest filing" call raised immediately. The search now scans
+  backwards month-by-month (~2 years) and stops at the first hit, which is
+  also far cheaper than a full-range scan.
+- **XBRL facts are now routed by taxonomy membership, not name keywords**:
+  `CashAndDeposits` went to cash flow (contains "cash") and
+  `TradeReceivables` was dropped entirely; real filings were missing
+  balance-sheet rows. Facts from all instance files are pooled before
+  categorizing (was first-file-wins), and a missing cash-flow statement now
+  triggers the XBRL fallback too. Keyword routing remains only as a
+  fallback for extension elements.
+- **EDINET availability flags parsed correctly**: the API sends
+  `"0"`/`"1"` strings; `bool("0")` is `True`, so `has_xbrl`/`has_pdf`/
+  `has_csv` were always reported as available.
+- **Screening**: companies missing the sort metric appeared first (not
+  last) under the default descending sort; `EdinetAPIError` from a single
+  company aborted the whole screening call instead of landing in `errors`.
+- **Growth rates use `abs(prior)` denominators**: an operating loss
+  improving from -100 to -50 reported -50% growth; now +50%, consistent
+  with `compare_periods` and the diff module.
+- **Diff**: row order was nondeterministic (set iteration) although the
+  MCP tool truncates to 50 rows; summaries counted added/removed rows as
+  "unchanged". Order now follows the newer period's display order and the
+  summary reports `added` / `removed` separately.
+- **Disk cache hardening**: atomic writes (same-directory temp file +
+  fsync + `os.replace`, `O_EXCL|O_NOFOLLOW` so planted symlinks are never
+  followed); corrupt JSON entries are treated as a miss and deleted; cache
+  keys now include the API `base_url` so staging/test responses can never
+  be served against production.
+- **Balance-sheet validation tolerance fixed**: values on the XBRL path
+  are raw JPY, so the documented ¥1M tolerance was actually ¥1,000.
+
+### Documentation
+- Parser docs no longer claim production ZIPs contain TSVs; CLI `--period`
+  is described as the filing year; `get_filings` no longer suggests
+  passing `doc_id` to `get_financial_statements`; README removes the
+  unsupported `max_retries` parameter; metric units documented as raw JPY
+  and ratio bases documented as ending-balance approximations.
+
+### Deferred to v0.9 (known limitations)
+- Dimensional contexts (e.g. business segments) can still overwrite
+  consolidated totals in normalization (last-write-wins) — the v0.9
+  segment work will make normalization context/dimension-aware.
+- The XBRL fallback does not populate the `summary` statement.
+
 ## [0.8.0] - 2026-07-17
 
 ### Added

@@ -2,6 +2,8 @@
 
 EDINET XBRL parsing library and MCP server for Japanese financial data.
 
+[日本語の README はこちら](README_ja.md)
+
 [![PyPI](https://img.shields.io/pypi/v/edinet-mcp)](https://pypi.org/project/edinet-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/edinet-mcp)](https://pypi.org/project/edinet-mcp/)
 [![CI](https://github.com/ajtgjmdjp/edinet-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ajtgjmdjp/edinet-mcp/actions/workflows/ci.yml)
@@ -233,6 +235,7 @@ Then ask your AI: "トヨタの最新の営業利益を教えて"
 | `get_financial_metrics` | ROE・ROA・利益率等の財務指標を計算 |
 | `compare_financial_periods` | 前年比較（増減額・増減率） |
 | `screen_companies` | 複数企業の財務指標を一括比較（最大20社） |
+| `get_narrative` | 定性情報（事業等のリスク・MD&A 等）をページング付きで取得 |
 | `list_available_labels` | 取得可能な財務科目の一覧 |
 | `get_company_info` | 企業の詳細情報を取得 |
 | `diff_financial_statements` | 2期間の財務諸表を比較（増減額・増減率） |

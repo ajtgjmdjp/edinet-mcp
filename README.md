@@ -11,7 +11,7 @@ EDINET XBRL parsing library and MCP server for Japanese financial data.
 
 📝 [日本語チュートリアル: Claude に聞くだけで上場企業の決算がわかる (Zenn)](https://zenn.dev/ajtgjmdjp/articles/edinet-mcp-claude-desktop)
 
-Part of the [Japan Finance Data Stack](https://github.com/ajtgjmdjp/awesome-japan-finance-data): **edinet-mcp** (securities filings) | [tdnet-disclosure-mcp](https://github.com/ajtgjmdjp/tdnet-disclosure-mcp) (timely disclosures) | [estat-mcp](https://github.com/ajtgjmdjp/estat-mcp) (government statistics) | [boj-mcp](https://github.com/ajtgjmdjp/boj-mcp) (Bank of Japan) | [stockprice-mcp](https://github.com/ajtgjmdjp/stockprice-mcp) (stock prices & FX)
+Part of the [Japan Finance Data Stack](https://github.com/ajtgjmdjp/awesome-japan-finance-data): **edinet-mcp** (securities filings) | [tdnet-disclosure-mcp](https://github.com/ajtgjmdjp/tdnet-disclosure-mcp) (timely disclosures) | [estat-mcp](https://github.com/ajtgjmdjp/estat-mcp) (government statistics) | [stockprice-mcp](https://github.com/ajtgjmdjp/stockprice-mcp) (stock prices & FX)
 
 > Building a high-throughput pipeline, batch-parsing thousands of filings, or
 > need SEC EDGAR coverage too? See [xbrl-facts](https://github.com/ajtgjmdjp/xbrl-facts)
@@ -374,7 +374,7 @@ EDINET API → Parser (XBRL/TSV) → Normalizer (taxonomy.yaml) → MCP Server
 git clone https://github.com/ajtgjmdjp/edinet-mcp
 cd edinet-mcp
 uv sync --extra dev
-uv run pytest -v           # 335 tests
+uv run pytest -v           # 336 tests
 uv run ruff check src/
 ```
 
@@ -390,7 +390,6 @@ EDINET data is provided under the [Public Data License 1.0](https://www.digital.
 **Japan Finance Data Stack** (by same author):
 - [tdnet-disclosure-mcp](https://github.com/ajtgjmdjp/tdnet-disclosure-mcp) — TDNET timely disclosures (適時開示)
 - [estat-mcp](https://github.com/ajtgjmdjp/estat-mcp) — Government statistics (e-Stat)
-- [boj-mcp](https://github.com/ajtgjmdjp/boj-mcp) — Bank of Japan statistics
 - [stockprice-mcp](https://github.com/ajtgjmdjp/stockprice-mcp) — Stock prices & FX rates (yfinance)
 - [jfinqa](https://github.com/ajtgjmdjp/jfinqa) — Japanese financial QA benchmark
 

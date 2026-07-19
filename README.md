@@ -2,7 +2,7 @@
 
 EDINET XBRL parsing library and MCP server for Japanese financial data.
 
-[日本語の README はこちら](README_ja.md)
+[日本語版READMEはこちら](README_ja.md)
 
 [![PyPI](https://img.shields.io/pypi/v/edinet-mcp)](https://pypi.org/project/edinet-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/edinet-mcp)](https://pypi.org/project/edinet-mcp/)

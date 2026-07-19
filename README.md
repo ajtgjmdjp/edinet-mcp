@@ -19,6 +19,21 @@ Part of the [Japan Finance Data Stack](https://github.com/ajtgjmdjp/awesome-japa
 > need SEC EDGAR coverage too? See [xbrl-facts](https://github.com/ajtgjmdjp/xbrl-facts)
 > — a Rust iXBRL engine for SEC + EDINET with byte-range provenance.
 
+## What it looks like
+
+<!-- TODO: replace with a short GIF of a real Claude Desktop session -->
+
+Ask your AI assistant (with edinet-mcp connected):
+
+> **You**: トヨタの最新の決算と、会社が挙げている主要なリスクを教えて
+>
+> **Claude**: トヨタ自動車 (E02144) の有価証券報告書（2026年6月10日提出）によると——
+> - **売上高**: 50.7兆円（前期 48.0兆円、約 +5.5%）
+> - **事業等のリスク**（有報本文より）: 自動車市場の競争激化 — CASE などの技術革新が進むことで競争は一層激化し、業界再編につながる可能性も指摘 …
+
+Every number and passage above is fetched from the actual EDINET filing via
+`get_financial_statements` / `get_narrative` — nothing comes from the model's memory.
+
 ## What is this?
 
 **edinet-mcp** provides programmatic access to Japan's [EDINET](https://disclosure.edinet-fsa.go.jp/) financial disclosure system. It normalizes XBRL filings across accounting standards (J-GAAP / IFRS / US-GAAP) into canonical Japanese labels and exposes them as an [MCP](https://modelcontextprotocol.io/) server for AI assistants.

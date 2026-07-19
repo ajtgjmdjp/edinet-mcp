@@ -10,6 +10,21 @@ EDINET（有価証券報告書）の XBRL を解析し、Python と AI アシス
 [![Downloads](https://img.shields.io/pypi/dm/edinet-mcp)](https://pypi.org/project/edinet-mcp/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
+## どんな感じで使える？
+
+<!-- TODO: Claude Desktop の実演 GIF をここに -->
+
+edinet-mcp を接続した AI アシスタントに、こう聞くだけです。
+
+> **あなた**: トヨタの最新の決算と、会社が挙げている主要なリスクを教えて
+>
+> **Claude**: トヨタ自動車 (E02144) の有価証券報告書（2026年6月10日提出）によると——
+> - **売上高**: 50.7兆円（前期 48.0兆円、約 +5.5%）
+> - **事業等のリスク**（有報本文より）: 自動車市場の競争激化 — CASE などの技術革新が進むことで競争は一層激化し、業界再編につながる可能性も指摘 …
+
+上の数値もリスクの記述も、すべて EDINET の開示原本から `get_financial_statements` /
+`get_narrative` で取得した実データです。モデルの記憶からの生成ではありません。
+
 ## これは何？
 
 **edinet-mcp** は、金融庁の [EDINET](https://disclosure.edinet-fsa.go.jp/) が公開する有価証券報告書などの開示書類を、プログラムから扱うためのツールです。会計基準（J-GAAP / IFRS / US-GAAP）ごとにバラバラな XBRL の科目名を共通のラベルに正規化し、Python ライブラリとしても、Claude などの AI アシスタントから使える [MCP](https://modelcontextprotocol.io/) サーバーとしても動きます。

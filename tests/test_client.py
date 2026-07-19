@@ -23,7 +23,7 @@ from edinet_mcp.client import (
     _validate_edinet_code,
     _validate_period,
 )
-from edinet_mcp.models import Company
+from edinet_mcp.models import Company, DocType, Filing
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -718,6 +718,7 @@ class TestResolveFilingLatest:
 
     async def test_latest_search_does_not_raise_range_error(self, sample_filing) -> None:
         client = EdinetClient(api_key="test")
+        client.get_company = AsyncMock(side_effect=ValueError("offline"))  # type: ignore[method-assign]
         calls: list[int] = []
         real_get_filings = client.get_filings
 
@@ -735,6 +736,7 @@ class TestResolveFilingLatest:
 
     async def test_latest_search_stops_on_first_window_hit(self, sample_filing) -> None:
         client = EdinetClient(api_key="test")
+        client.get_company = AsyncMock(side_effect=ValueError("offline"))  # type: ignore[method-assign]
         client.get_filings = AsyncMock(return_value=[sample_filing])  # type: ignore[method-assign]
         filing = await client._resolve_filing("E02144", "annual_report", None)
         assert filing == sample_filing
@@ -742,6 +744,7 @@ class TestResolveFilingLatest:
 
     async def test_latest_search_exhausted_raises(self) -> None:
         client = EdinetClient(api_key="test")
+        client.get_company = AsyncMock(side_effect=ValueError("offline"))  # type: ignore[method-assign]
         client.get_filings = AsyncMock(return_value=[])  # type: ignore[method-assign]
         with pytest.raises(ValueError, match="No annual_report filing found"):
             await client._resolve_filing("E02144", "annual_report", None)
@@ -765,3 +768,238 @@ class TestCacheKeySourceScoping:
         result = await client2._fetch_filings_for_date(date)
         assert client2._get_json.call_count == 1
         assert result == []
+
+
+class TestFiscalYearEndParsing:
+    """Company list CSV column [5] (決算日) must be parsed, not discarded."""
+
+    _CSV = (
+        "ダウンロード実行日,2026年07月19日現在,件数,2件\n"
+        "ＥＤＩＮＥＴコード,提出者種別,上場区分,連結の有無,資本金,決算日,提出者名,提出者名（英字）,"
+        "提出者名（ヨミ）,所在地,提出者業種,証券コード,提出者法人番号\n"
+        "E02144,内国法人・組合,上場,有,635402,3月31日,トヨタ自動車株式会社,TOYOTA MOTOR CORP,"
+        "トヨタジドウシャ,愛知県豊田市,輸送用機器,72030,1180301018771\n"
+        "E99999,内国法人・組合,非上場,無,100,12月31日,テスト株式会社,TEST CO,"
+        "テスト,東京都,サービス業,,\n"
+    )
+
+    def _zip_bytes(self) -> bytes:
+        import io
+        import zipfile
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("EdinetcodeDlInfo.csv", self._CSV.encode("cp932"))
+        return buf.getvalue()
+
+    def test_fiscal_year_end_parsed(self) -> None:
+        companies = EdinetClient._parse_code_list_zip(self._zip_bytes())
+        by_code = {c.edinet_code: c for c in companies}
+        assert by_code["E02144"].fiscal_year_end == "3月31日"
+        assert by_code["E99999"].fiscal_year_end == "12月31日"
+
+
+class TestLatestSearchPlan:
+    """Ordered search plan for the latest annual report (Codex-reviewed).
+
+    A probe month M may only be accepted when every date after M's
+    following fiscal year-end (where a newer report could exist) has
+    already been covered by an earlier window in the plan.
+    """
+
+    @staticmethod
+    def _plan(fiscal_month, today):
+        from edinet_mcp.client import _latest_search_plan
+
+        return _latest_search_plan(fiscal_month, today)
+
+    def test_march_close_after_deadline_probes_june_first(self) -> None:
+        plan = self._plan(3, datetime.date(2026, 7, 20))
+        start, end = plan[0]
+        assert (start.year, start.month) == (2026, 6)
+        assert end >= datetime.date(2026, 6, 30)
+        # Second probe: fiscal+2 (May) of the same cycle
+        start2, _ = plan[1]
+        assert (start2.year, start2.month) == (2026, 5)
+
+    def test_december_close_in_february_scans_elapsed_season_first(self) -> None:
+        # Deadline (March 2026) is future. Elapsed season (Jan-Feb) must be
+        # covered by scan windows BEFORE probing March of the previous year,
+        # otherwise an early current filing would be shadowed by stale data.
+        plan = self._plan(12, datetime.date(2026, 2, 10))
+        prev_march = next(i for i, (s, _) in enumerate(plan) if (s.year, s.month) == (2025, 3))
+        # Every date from the recent fiscal year end to today is covered earlier
+        covered = set()
+        for s, e in plan[:prev_march]:
+            d = s
+            while d <= e:
+                covered.add(d)
+                d += datetime.timedelta(days=1)
+        d = datetime.date(2026, 1, 1)
+        while d <= datetime.date(2026, 2, 10):
+            assert d in covered, f"{d} not covered before previous-year probe"
+            d += datetime.timedelta(days=1)
+
+    def test_windows_never_end_in_future(self) -> None:
+        today = datetime.date(2026, 6, 15)
+        for _start, end in self._plan(3, today):
+            assert end <= today
+
+    def test_unknown_fiscal_month_is_plain_backwards_scan(self) -> None:
+        plan = self._plan(None, datetime.date(2026, 7, 20))
+        assert plan[0][1] == datetime.date(2026, 7, 20)
+        # Contiguous backwards coverage of ~2 years
+        total_days = sum((e - s).days + 1 for s, e in plan)
+        assert total_days >= 700
+
+    def test_plan_covers_two_years(self) -> None:
+        plan = self._plan(3, datetime.date(2026, 7, 20))
+        earliest = min(s for s, _ in plan)
+        assert earliest <= datetime.date(2024, 9, 1)
+
+
+class TestResolveFilingHeuristic:
+    """period=None should try the predicted filing window before scanning."""
+
+    async def test_predicted_window_hit_needs_one_call(
+        self, sample_filing, sample_company, monkeypatch
+    ):
+        import edinet_mcp.client as client_mod
+
+        class _FakeDate(datetime.date):
+            @classmethod
+            def today(cls) -> datetime.date:
+                return datetime.date(2026, 7, 20)
+
+        monkeypatch.setattr(client_mod.datetime, "date", _FakeDate)
+        client = EdinetClient(api_key="test")
+        client.get_company = AsyncMock(  # type: ignore[method-assign]
+            return_value=sample_company.model_copy(update={"fiscal_year_end": "3月31日"})
+        )
+        windows: list[tuple] = []
+
+        async def fake_get_filings(*, start_date, end_date, edinet_code, doc_type):
+            windows.append((start_date, end_date))
+            return [sample_filing]
+
+        client.get_filings = fake_get_filings  # type: ignore[method-assign]
+        filing = await client._resolve_filing("E02144", "annual_report", None)
+        assert filing == sample_filing
+        assert len(windows) == 1
+        # The first window must cover a June (deadline month for March close)
+        start, end = windows[0]
+        assert any(d.month == 6 for d in (start, end)) or (start.month <= 6 <= end.month)
+
+    async def test_unknown_fiscal_month_falls_back_to_scan(self, sample_filing, sample_company):
+        client = EdinetClient(api_key="test")
+        client.get_company = AsyncMock(  # type: ignore[method-assign]
+            return_value=sample_company.model_copy(update={"fiscal_year_end": None})
+        )
+        client.get_filings = AsyncMock(return_value=[sample_filing])  # type: ignore[method-assign]
+        filing = await client._resolve_filing("E02144", "annual_report", None)
+        assert filing == sample_filing
+
+    async def test_company_lookup_failure_falls_back_to_scan(self, sample_filing):
+        client = EdinetClient(api_key="test")
+        client.get_company = AsyncMock(side_effect=ValueError("not found"))  # type: ignore[method-assign]
+        client.get_filings = AsyncMock(return_value=[sample_filing])  # type: ignore[method-assign]
+        filing = await client._resolve_filing("E02144", "annual_report", None)
+        assert filing == sample_filing
+
+
+class TestHistoricalFilingsCachePermanence:
+    """Past dates' filings lists are immutable — cache them forever."""
+
+    def test_tiered_ttl(self) -> None:
+        # Codex review: lists are not strictly immutable (withdrawals,
+        # metadata edits), so use long bounded TTLs instead of永久 cache.
+        from edinet_mcp.client import _filings_cache_max_age
+
+        today = datetime.date(2026, 7, 20)
+        day = 24 * 3600
+        assert _filings_cache_max_age(today, today) == day
+        assert _filings_cache_max_age(datetime.date(2026, 7, 14), today) == day
+        assert _filings_cache_max_age(datetime.date(2026, 6, 1), today) == 7 * day
+        assert _filings_cache_max_age(datetime.date(2026, 1, 1), today) == 60 * day
+
+
+class TestLatestFilingCorrectness:
+    """Codex regression cases: the heuristic must never return stale filings."""
+
+    @staticmethod
+    def _filing(doc_id: str, d: datetime.date) -> Filing:
+        return Filing(
+            doc_id=doc_id,
+            edinet_code="E02144",
+            company_name="Test",
+            doc_type=DocType.ANNUAL_REPORT,
+            filing_date=d,
+        )
+
+    def _client_with_filings(self, filings: list[Filing], fiscal: str) -> EdinetClient:
+        client = EdinetClient(api_key="test")
+        client.get_company = AsyncMock(  # type: ignore[method-assign]
+            return_value=Company(edinet_code="E02144", name="Test", fiscal_year_end=fiscal)
+        )
+
+        async def fake_get_filings(*, start_date, end_date, edinet_code, doc_type):
+            return [f for f in filings if start_date <= f.filing_date <= end_date]
+
+        client.get_filings = fake_get_filings  # type: ignore[method-assign]
+        return client
+
+    async def test_early_current_filing_beats_previous_year(self, monkeypatch) -> None:
+        # December closer queried in February: filed early in January.
+        # Jumping straight to last-year March would return S_OLD.
+        import edinet_mcp.client as client_mod
+
+        class _FakeDate(datetime.date):
+            @classmethod
+            def today(cls) -> datetime.date:
+                return datetime.date(2026, 2, 10)
+
+        monkeypatch.setattr(client_mod.datetime, "date", _FakeDate)
+        filings = [
+            self._filing("S_OLD", datetime.date(2025, 3, 25)),
+            self._filing("S_NEW", datetime.date(2026, 1, 20)),
+        ]
+        client = self._client_with_filings(filings, "12月31日")
+        result = await client._find_latest_filing("E02144", "annual_report")
+        assert result is not None
+        assert result.doc_id == "S_NEW"
+
+    async def test_late_filer_found_by_scan(self, monkeypatch) -> None:
+        # March closer that filed late (July): June probe misses, scan finds it.
+        import edinet_mcp.client as client_mod
+
+        class _FakeDate(datetime.date):
+            @classmethod
+            def today(cls) -> datetime.date:
+                return datetime.date(2026, 7, 20)
+
+        monkeypatch.setattr(client_mod.datetime, "date", _FakeDate)
+        filings = [self._filing("S_LATE", datetime.date(2026, 7, 10))]
+        client = self._client_with_filings(filings, "3月31日")
+        result = await client._find_latest_filing("E02144", "annual_report")
+        assert result is not None
+        assert result.doc_id == "S_LATE"
+
+    async def test_off_window_newer_filing_beats_old_deadline_filing(self, monkeypatch) -> None:
+        # Old June 2025 filing exists, but a NEWER off-window filing (Aug 2025)
+        # must win when June 2026 is empty.
+        import edinet_mcp.client as client_mod
+
+        class _FakeDate(datetime.date):
+            @classmethod
+            def today(cls) -> datetime.date:
+                return datetime.date(2026, 5, 1)
+
+        monkeypatch.setattr(client_mod.datetime, "date", _FakeDate)
+        filings = [
+            self._filing("S_JUNE25", datetime.date(2025, 6, 20)),
+            self._filing("S_AUG25", datetime.date(2025, 8, 15)),
+        ]
+        client = self._client_with_filings(filings, "3月31日")
+        result = await client._find_latest_filing("E02144", "annual_report")
+        assert result is not None
+        assert result.doc_id == "S_AUG25"

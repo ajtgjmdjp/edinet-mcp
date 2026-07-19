@@ -88,6 +88,8 @@ class Company(BaseModel):
         corporate_number: 13-digit corporate number / 法人番号 (e.g. ``"2180001012461"``).
         industry: Industry classification.
         accounting_standard: Primary accounting standard.
+        fiscal_year_end: Fiscal year-end / 決算日 as listed by EDINET
+            (e.g. ``"3月31日"``). Used to predict annual-report filing months.
     """
 
     edinet_code: str
@@ -99,6 +101,7 @@ class Company(BaseModel):
     industry: str | None = None
     accounting_standard: AccountingStandard = AccountingStandard.UNKNOWN
     is_listed: bool = False
+    fiscal_year_end: str | None = None
 
     model_config = {"frozen": True}
 

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-07-20
+
+Performance release for the period-omitted "latest filing" path — the first
+path new users touch. Design reviewed with gpt-5.3-codex
+(thread 019f700e-3f16-7c33-8440-b8f3b13b05a4).
+
+### Changed
+- **Fiscal-year-end heuristic**: the EDINET code list's 決算日 column is now
+  parsed into `Company.fiscal_year_end` (companies cache schema v4). With
+  `period` omitted, annual-report resolution probes the company's statutory
+  filing-deadline month (決算月+3, then +2) before the backwards scan —
+  cold lookups drop to ~1 month window (~60s at the default rate limit)
+  regardless of fiscal calendar, verified end-to-end against the live API.
+  Probes are restricted to the current filing cycle: per review, accepting
+  a previous-year window could shadow a newer off-window filing, so prior
+  cycles are always reached via the reverse-chronological scan instead.
+- **Tiered filings-cache TTL**: per-date lists age from 24h (last 7 days)
+  to 7 days (≤90 days) to 60 days (older), making repeated scans
+  effectively instant. Bounded TTLs were chosen over permanent caching
+  because list rows are not strictly immutable (withdrawals/metadata
+  edits) and a permanently cached empty anomaly would never heal.
+- Any code-list lookup failure silently degrades to the plain scan —
+  malformed 決算日 data can never break filing resolution.
+
 ## [0.8.1] - 2026-07-17
 
 Correctness release from a whole-codebase review (self-review + gpt-5.3-codex,

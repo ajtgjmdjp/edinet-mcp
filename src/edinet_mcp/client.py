@@ -21,6 +21,7 @@ Example::
 from __future__ import annotations
 
 import asyncio
+import calendar
 import datetime
 import io
 import json
@@ -87,6 +88,109 @@ _LATEST_SEARCH_WINDOWS = 24
 
 # ZIP magic bytes
 _ZIP_MAGIC = b"PK"
+
+
+# Grace period between fiscal year-end and the statutory annual-report
+# filing deadline (3ヶ月以内); most filings cluster in the deadline month.
+_FILING_DEADLINE_MONTHS = 3
+
+_FISCAL_MONTH_PATTERN = re.compile(r"(\d{1,2})月")
+
+
+def _fiscal_month_from_year_end(fiscal_year_end: str | None) -> int | None:
+    """Extract the month from an EDINET 決算日 string (e.g. "3月31日" -> 3)."""
+    if not fiscal_year_end:
+        return None
+    m = _FISCAL_MONTH_PATTERN.search(fiscal_year_end)
+    if not m:
+        return None
+    month = int(m.group(1))
+    return month if 1 <= month <= 12 else None
+
+
+def _month_window(
+    year: int, month: int, today: datetime.date
+) -> tuple[datetime.date, datetime.date] | None:
+    """Return (first day, last day) of a month, clamped to today.
+
+    Returns None if the month is entirely in the future.
+    """
+    start = datetime.date(year, month, 1)
+    if start > today:
+        return None
+    last_day = calendar.monthrange(year, month)[1]
+    end = min(datetime.date(year, month, last_day), today)
+    return (start, end)
+
+
+def _add_months(year: int, month: int, offset: int) -> tuple[int, int]:
+    """Return (year, month) shifted by *offset* months."""
+    m = month - 1 + offset
+    return year + m // 12, m % 12 + 1
+
+
+def _latest_search_plan(
+    fiscal_month: int | None,
+    today: datetime.date,
+) -> list[tuple[datetime.date, datetime.date]]:
+    """Ordered search windows for the most recent annual report.
+
+    Correctness rule (Codex-reviewed): a probe month may only be placed
+    before the reverse-chronological scan when no NEWER filing can exist
+    outside it — true only for the current cycle's deadline months,
+    because the next fiscal year has not ended yet. Previous-year probes
+    are deliberately absent: accepting them would require ruling out all
+    intervening dates first, which is exactly what the scan does anyway.
+    (Known trade-off: a company that changes its fiscal year-end can file
+    twice within a cycle; the code list's updated 決算日 mitigates this.)
+    """
+    scan: list[tuple[datetime.date, datetime.date]] = []
+    window_end = today
+    for _ in range(_LATEST_SEARCH_WINDOWS):
+        window_start = window_end - datetime.timedelta(days=_LATEST_SEARCH_WINDOW_DAYS)
+        scan.append((window_start, window_end))
+        window_end = window_start - datetime.timedelta(days=1)
+
+    if fiscal_month is None:
+        return scan
+
+    # Most recent fiscal year-end on or before today
+    fy_year = today.year
+    last_day = calendar.monthrange(fy_year, fiscal_month)[1]
+    if datetime.date(fy_year, fiscal_month, last_day) > today:
+        fy_year -= 1
+
+    plan: list[tuple[datetime.date, datetime.date]] = []
+    d_year, d_month = _add_months(fy_year, fiscal_month, _FILING_DEADLINE_MONTHS)
+    if datetime.date(d_year, d_month, 1) <= today:
+        # Current filing season has started: probe the statutory deadline
+        # month first (highest hit rate), then fiscal+2 for early filers.
+        for offset in (_FILING_DEADLINE_MONTHS, _FILING_DEADLINE_MONTHS - 1):
+            y, m = _add_months(fy_year, fiscal_month, offset)
+            window = _month_window(y, m, today)
+            if window is not None:
+                plan.append(window)
+
+    seen = set(plan)
+    plan.extend(w for w in scan if w not in seen)
+    return plan
+
+
+def _filings_cache_max_age(date: datetime.date, today: datetime.date) -> float:
+    """Tiered cache TTL for a date's filings list.
+
+    Older lists change rarely but are NOT strictly immutable (withdrawals
+    and metadata edits exist in the API schema), so long bounded TTLs are
+    used instead of permanence — repeated scans stay effectively instant
+    while corrections eventually propagate. A permanently cached empty
+    result from a transient anomaly would otherwise never heal.
+    """
+    age_days = (today - date).days
+    if age_days <= 7:
+        return _CACHE_TTL_FILINGS  # 24h — new/late listings still appear
+    if age_days <= 90:
+        return 7 * 24 * 3600
+    return 60 * 24 * 3600
 
 
 class EdinetAPIError(Exception):
@@ -348,7 +452,8 @@ class EdinetClient:
             "base_url": self._base_url,
         }
 
-        cached = self._cache.get_json("filings", cache_params, max_age=_CACHE_TTL_FILINGS)
+        max_age = _filings_cache_max_age(date, datetime.date.today())
+        cached = self._cache.get_json("filings", cache_params, max_age=max_age)
         if cached is not None:
             # Filter defensively: caches written by older versions may still
             # contain rows without a docID (e.g. metadata-only rows).
@@ -487,36 +592,59 @@ class EdinetClient:
     ) -> Filing:
         """Find the most recent matching filing for a company.
 
-        Uses month-priority search when *period* is given. Otherwise
-        scans backwards month-by-month over the trailing two years,
-        stopping at the first window with a match — a single 730-day
-        range would both exceed the get_filings range limit and fetch
-        every day even after a hit. Shared by statement and narrative
-        retrieval.
+        Uses month-priority search when *period* is given. Otherwise,
+        for annual reports, first tries the company's predicted filing
+        month (決算日 + 3ヶ月, from the EDINET code list), then falls back
+        to a backwards month-by-month scan over the trailing two years,
+        stopping at the first window with a match. Shared by statement
+        and narrative retrieval.
         """
         if period:
             filing = await self._find_filing_for_period(edinet_code, int(period), doc_type)
         else:
-            filing_or_none: Filing | None = None
-            window_end = datetime.date.today()
-            for _ in range(_LATEST_SEARCH_WINDOWS):
-                window_start = window_end - datetime.timedelta(days=_LATEST_SEARCH_WINDOW_DAYS)
-                filings = await self.get_filings(
-                    start_date=window_start,
-                    end_date=window_end,
-                    edinet_code=edinet_code,
-                    doc_type=doc_type,
-                )
-                if filings:
-                    filing_or_none = sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
-                    break
-                window_end = window_start - datetime.timedelta(days=1)
+            filing_or_none = await self._find_latest_filing(edinet_code, doc_type)
             if filing_or_none is None:
                 msg = f"No {doc_type} filing found for {edinet_code} in the last 2 years"
                 raise ValueError(msg)
             filing = filing_or_none
         logger.info(f"Using filing {filing.doc_id} ({filing.description})")
         return filing
+
+    async def _find_latest_filing(
+        self,
+        edinet_code: str,
+        doc_type: str | DocType,
+    ) -> Filing | None:
+        """Search for the most recent filing using an ordered window plan."""
+        today = datetime.date.today()
+
+        fiscal_month: int | None = None
+        if doc_type in ("annual_report", DocType.ANNUAL_REPORT):
+            fiscal_month = await self._fiscal_month(edinet_code)
+
+        for window_start, window_end in _latest_search_plan(fiscal_month, today):
+            filings = await self.get_filings(
+                start_date=window_start,
+                end_date=window_end,
+                edinet_code=edinet_code,
+                doc_type=doc_type,
+            )
+            if filings:
+                return sorted(filings, key=lambda f: f.filing_date, reverse=True)[0]
+        return None
+
+    async def _fiscal_month(self, edinet_code: str) -> int | None:
+        """The company's fiscal year-end month from the code list, or None.
+
+        Any lookup failure degrades to None (plain scan) — malformed or
+        missing code-list data must never break filing resolution.
+        """
+        try:
+            company = await self.get_company(edinet_code)
+        except (ValueError, EdinetAPIError, httpx.HTTPError) as exc:
+            logger.debug(f"Fiscal-month heuristic unavailable for {edinet_code}: {exc}")
+            return None
+        return _fiscal_month_from_year_end(company.fiscal_year_end if company else None)
 
     async def get_narrative(
         self,
@@ -753,7 +881,7 @@ class EdinetClient:
 
     async def _get_company_list(self) -> list[Company]:
         """Load the EDINET code list, downloading if necessary."""
-        cached = self._cache.get_json("companies", {"version": "v3"}, max_age=_CACHE_TTL_COMPANIES)
+        cached = self._cache.get_json("companies", {"version": "v4"}, max_age=_CACHE_TTL_COMPANIES)
         if cached is not None:
             return [Company(**c) for c in cached]
 
@@ -766,7 +894,7 @@ class EdinetClient:
         companies = self._parse_code_list_zip(data)
         self._cache.put_json(
             "companies",
-            {"version": "v3"},
+            {"version": "v4"},
             [c.model_dump() for c in companies],
         )
         logger.info(f"Cached {len(companies)} companies")
@@ -809,6 +937,7 @@ class EdinetClient:
                     corporate_number = row[12].strip() if len(row) > 12 else ""
                     industry = row[10].strip() if len(row) > 10 else ""
                     is_listed = row[2].strip() == "上場" if len(row) > 2 else False
+                    fiscal_year_end = row[5].strip() if len(row) > 5 else ""
                     companies.append(
                         Company(
                             edinet_code=edinet_code,
@@ -819,6 +948,7 @@ class EdinetClient:
                             corporate_number=corporate_number or None,
                             industry=industry or None,
                             is_listed=is_listed,
+                            fiscal_year_end=fiscal_year_end or None,
                         )
                     )
         return companies

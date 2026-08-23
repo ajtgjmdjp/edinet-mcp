@@ -38,4 +38,6 @@ jobs:
           echo "sdist audit passed"
           rm -rf "$TEMP_DIR"
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@a892a5a61159132606e93a2fa6f4358831b04d26  # v1.14.2
+        # Docker-based action: must be pinned by tag, not SHA — SHA pinning
+        # breaks its docker manifest resolution (upstream-documented caveat)
+        uses: pypa/gh-action-pypi-publish@v1.14.2

@@ -35,6 +35,13 @@ from edinet_mcp._diff import diff_statements as _diff_statements
 from edinet_mcp._metrics import calculate_metrics, compare_periods
 from edinet_mcp._narrative import NARRATIVE_SECTIONS
 from edinet_mcp._normalize import get_label_aliases, get_taxonomy_labels
+from edinet_mcp._receipts import (
+    DEFAULT_RECEIPT_LABELS,
+    ReceiptsUnavailableError,
+)
+from edinet_mcp._receipts import (
+    get_receipts as _get_receipts_impl,
+)
 from edinet_mcp._screening import screen_companies as _screen_companies
 from edinet_mcp.client import EdinetClient
 
@@ -126,6 +133,7 @@ mcp = FastMCP(
         "- compare_financial_periods: Get year-over-year changes\n"
         "- screen_companies: Compare metrics across multiple companies\n"
         "- get_narrative: Get qualitative sections (事業等のリスク, MD&A, 経営方針)\n"
+        "- get_receipts: Machine-verifiable evidence receipts for key figures\n"
         "- list_available_labels: See which labels are available\n\n"
         "IMPORTANT: The 'period' parameter is the FILING year, not fiscal year. "
         "Japanese companies with March fiscal year-end file annual reports in "
@@ -627,3 +635,44 @@ async def get_narrative(
         "next_offset": end if truncated else None,
         "source_truncated": narrative.source_truncated,
     }
+
+
+@mcp.tool()
+async def get_receipts(
+    edinet_code: Annotated[
+        str,
+        Field(description="企業のEDINETコード (例: 'E02144')"),
+    ],
+    labels: Annotated[
+        list[str] | None,
+        Field(
+            description=(
+                "receipt を取得する科目名のリスト (例: ['売上高', '営業利益'])。"
+                "省略時は主要科目 (売上高・営業利益・経常利益・当期純利益・資産合計・純資産合計)"
+            )
+        ),
+    ] = None,
+    period: Annotated[
+        CoercedStr,
+        Field(description="書類が提出された年 (例: '2025')。省略時は直近の有価証券報告書"),
+    ] = None,
+) -> dict[str, Any]:
+    """Get machine-verifiable evidence receipts for key financial figures.
+
+    Each receipt binds a number to the exact byte range of the original
+    EDINET filing (source hash + locator + content-hash id, er/0.2 schema).
+    Receipts can be independently verified with the xbrl-facts verifier —
+    tampering with either the source or the claim fails verification.
+
+    Requires the optional dependency: pip install edinet-mcp[receipts]
+    """
+    client = await _get_client()
+    try:
+        result = await _get_receipts_impl(client, edinet_code, labels=labels, period=period)
+    except ReceiptsUnavailableError as exc:
+        return {
+            "available": False,
+            "message": str(exc),
+            "default_labels": DEFAULT_RECEIPT_LABELS,
+        }
+    return {"available": True, **result}

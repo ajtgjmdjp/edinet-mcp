@@ -551,7 +551,7 @@ wheels = [
 
 [[package]]
 name = "edinet-mcp"
-version = "0.8.2"
+version = "0.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -581,6 +581,9 @@ pandas = [
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
+receipts = [
+    { name = "xbrl-facts" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -603,8 +606,9 @@ requires-dist = [
     { name = "types-defusedxml", marker = "extra == 'dev'", specifier = ">=0.7" },
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "vcrpy", marker = "extra == 'dev'", specifier = ">=6.0" },
+    { name = "xbrl-facts", marker = "extra == 'receipts'", specifier = ">=0.1.0" },
 ]
-provides-extras = ["pandas", "dev"]
+provides-extras = ["receipts", "pandas", "dev"]
 
 [[package]]
 name = "email-validator"
@@ -2579,6 +2583,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1e/06/b500bfc38a4f82d89f34a13069e748c82c5430d365d9e6b75afb3ab74457/wrapt-2.1.1-cp314-cp314t-win_amd64.whl", hash = "sha256:f76bc12c583ab01e73ba0ea585465a41e48d968f6d1311b4daec4f8654e356e3", size = 63855, upload-time = "2026-02-03T02:12:15.47Z" },
     { url = "https://files.pythonhosted.org/packages/d9/cc/5f6193c32166faee1d2a613f278608e6f3b95b96589d020f0088459c46c9/wrapt-2.1.1-cp314-cp314t-win_arm64.whl", hash = "sha256:7ea74fc0bec172f1ae5f3505b6655c541786a5cabe4bbc0d9723a56ac32eb9b9", size = 60443, upload-time = "2026-02-03T02:11:30.869Z" },
     { url = "https://files.pythonhosted.org/packages/c4/da/5a086bf4c22a41995312db104ec2ffeee2cf6accca9faaee5315c790377d/wrapt-2.1.1-py3-none-any.whl", hash = "sha256:3b0f4629eb954394a3d7c7a1c8cca25f0b07cefe6aa8545e862e9778152de5b7", size = 43886, upload-time = "2026-02-03T02:11:45.048Z" },
+]
+
+[[package]]
+name = "xbrl-facts"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/1f/4b834683e8dc5345757498eeeb20d082ca58f20d4fb91986061e2e1a96cd/xbrl_facts-0.1.0.tar.gz", hash = "sha256:140b5584b13ffeb6c43b11e2df7031cf0898bfa4acf25b31a63cadd4fb648746", size = 46714, upload-time = "2026-08-23T08:35:06.28Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/13/e7cde37146a42c0d6c0241da440235a1c45e040cddcc13cd468c831eba93/xbrl_facts-0.1.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:82e5316cfb73d8155b4353ce146452c9928155f892f78adb5d8198c79ec1727b", size = 498659, upload-time = "2026-08-23T08:35:04.746Z" },
 ]
 
 [[package]]

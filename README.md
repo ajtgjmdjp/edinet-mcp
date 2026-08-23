@@ -47,7 +47,8 @@ Every number and passage above is fetched from the actual EDINET filing via
 - **Multi-company screening**: Compare financial metrics across up to 20 companies
 - **Cross-period diff (xbrl-diff)**: Compare financial statements across periods with change amounts (増減額) and growth rates (増減率)
 - **Narrative sections**: extract 事業等のリスク, MD&A, 経営方針 and more as plain text (`get_narrative`)
-- MCP server with 10 tools for Claude Desktop and other AI tools
+- **Evidence receipts** (optional): machine-verifiable claim-to-source records for key figures, backed by the [xbrl-facts](https://github.com/ajtgjmdjp/xbrl-facts) Rust engine (`get_receipts`, `pip install edinet-mcp[receipts]`)
+- MCP server with 11 tools for Claude Desktop and other AI tools
 
 ### Why edinet-mcp?
 
@@ -251,6 +252,7 @@ Then ask your AI: "トヨタの最新の営業利益を教えて"
 | `compare_financial_periods` | 前年比較（増減額・増減率） |
 | `screen_companies` | 複数企業の財務指標を一括比較（最大20社） |
 | `get_narrative` | 定性情報（事業等のリスク・MD&A 等）をページング付きで取得 |
+| `get_receipts` | 主要科目の検証可能な evidence receipt を取得（要 `[receipts]` extra） |
 | `list_available_labels` | 取得可能な財務科目の一覧 |
 | `get_company_info` | 企業の詳細情報を取得 |
 | `diff_financial_statements` | 2期間の財務諸表を比較（増減額・増減率） |

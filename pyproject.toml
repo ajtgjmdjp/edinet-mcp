@@ -1,6 +1,6 @@
 [project]
 name = "edinet-mcp"
-version = "0.8.2"
+version = "0.9.0"
 description = "EDINET XBRL parsing library and MCP server for Japanese financial data"
 readme = "README.md"
 license = "Apache-2.0"
@@ -33,6 +33,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+receipts = ["xbrl-facts>=0.1.0"]
 pandas = ["pandas>=2.0"]
 dev = [
     "pytest>=8.0",
@@ -84,3 +85,7 @@ mypy_path = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[[tool.mypy.overrides]]
+module = "xbrl_facts"
+ignore_missing_imports = true

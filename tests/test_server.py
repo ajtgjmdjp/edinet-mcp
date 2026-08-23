@@ -19,6 +19,7 @@ from edinet_mcp.server import (
     get_financial_metrics,
     get_financial_statements,
     get_narrative,
+    get_receipts,
     list_available_labels,
     screen_companies,
     search_companies,
@@ -30,6 +31,7 @@ _search_companies = search_companies.fn
 _get_filings = get_filings.fn
 _get_financial_statements = get_financial_statements.fn
 _get_narrative = get_narrative.fn
+_get_receipts_tool = get_receipts.fn
 _get_financial_metrics = get_financial_metrics.fn
 _compare_financial_periods = compare_financial_periods.fn
 _list_available_labels = list_available_labels.fn
@@ -345,3 +347,27 @@ class TestGetNarrativeTool:
             pytest.raises(ValueError, match="max_chars"),
         ):
             await _get_narrative("E02144", "business_risks", max_chars=100000)
+
+
+class TestGetReceiptsTool:
+    async def test_unavailable_without_dependency(self, monkeypatch) -> None:
+        import sys
+
+        monkeypatch.setitem(sys.modules, "xbrl_facts", None)
+        client = MagicMock()
+        client._resolve_filing = AsyncMock(side_effect=AssertionError("should not be called"))
+        with patch("edinet_mcp.server._get_client", return_value=client):
+            result = await _get_receipts_tool("E02144")
+        assert result["available"] is False
+        assert "pip install" in result["message"]
+
+    async def test_returns_receipts_when_available(self, monkeypatch, sample_filing) -> None:
+        async def fake_get_receipts(client, code, *, labels=None, period=None):
+            return {"schema": "er/0.2", "doc_id": "S100TEST", "receipts": {"売上高": []}}
+
+        monkeypatch.setattr("edinet_mcp.server._get_receipts_impl", fake_get_receipts)
+        client = MagicMock()
+        with patch("edinet_mcp.server._get_client", return_value=client):
+            result = await _get_receipts_tool("E02144")
+        assert result["available"] is True
+        assert result["doc_id"] == "S100TEST"

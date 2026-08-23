@@ -33,10 +33,11 @@ edinet-mcp を接続した AI アシスタントに、こう聞くだけです�
 - 有価証券報告書・四半期報告書・半期報告書・臨時報告書・大量保有報告書に対応しています
 - **自動正規化**: 会計基準を問わず `stmt["売上高"]` で値が取れます（英語ラベル `stmt["Revenue"]` も使えます）
 - **定性情報の抽出**: 事業等のリスク・MD&A・経営方針などをテキストで取得できます（`get_narrative`）
+- **evidence receipt**（オプション）: 主要科目の数値を開示原本のバイト位置まで機械検証できるレシート（`get_receipts`、`pip install edinet-mcp[receipts]`）
 - ROE・ROA・利益率などの財務指標と前年比較を計算します
 - Polars / pandas の DataFrame にそのまま変換できます
 - 最大 20 社の**一括スクリーニング**と、2 期間の**増減比較**（増減額・増減率）
-- Claude Desktop などから使える MCP サーバー（ツール 10 種）
+- Claude Desktop などから使える MCP サーバー（ツール 11 種）
 
 ### なぜ edinet-mcp？
 
@@ -156,6 +157,7 @@ claude mcp add edinet -- uvx edinet-mcp serve
 | `compare_financial_periods` | 前年比較（増減額・増減率） |
 | `screen_companies` | 複数企業の財務指標を一括比較（最大20社） |
 | `get_narrative` | 定性情報（事業等のリスク・MD&A 等）をページング付きで取得 |
+| `get_receipts` | 主要科目の検証可能な evidence receipt（要 `[receipts]` extra） |
 | `list_available_labels` | 取得可能な財務科目の一覧 |
 | `get_company_info` | 企業の詳細情報を取得 |
 | `diff_financial_statements` | 2期間の財務諸表を比較（増減額・増減率） |

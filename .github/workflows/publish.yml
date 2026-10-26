@@ -40,4 +40,4 @@ jobs:
       - name: Publish to PyPI
         # Docker-based action: must be pinned by tag, not SHA — SHA pinning
         # breaks its docker manifest resolution (upstream-documented caveat)
-        uses: pypa/gh-action-pypi-publish@v1.14.2
+        uses: pypa/gh-action-pypi-publish@v1.14.3
